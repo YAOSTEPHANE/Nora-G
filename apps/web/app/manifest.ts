@@ -1,13 +1,13 @@
-import type { MetadataRoute } from 'next'
+﻿import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Caisse CI — Point de vente',
-    short_name: 'Caisse CI',
+    name: 'Nora',
+    short_name: 'Nora',
     description:
       'Caisse enregistreuse hors ligne pour commerces en Côte d’Ivoire',
-    theme_color: '#003399',
-    background_color: '#f8fafc',
+    theme_color: '#0033AA',
+    background_color: '#ffffff',
     display: 'standalone',
     orientation: 'any',
     start_url: '/',
@@ -16,13 +16,13 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ['business', 'finance', 'productivity'],
     icons: [
       {
-        src: '/branding/logo-circle.svg',
-        sizes: 'any',
-        type: 'image/svg+xml',
+        src: '/branding/nora-logo.png',
+        sizes: '512x512',
+        type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/branding/caisse-ci-logo.png',
+        src: '/branding/nora-logo.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',

@@ -241,7 +241,7 @@ export function buildEscPosReceipt(
     cmdAlign('center'),
     cmdFeed(1),
     textLine(centerLine(footer)),
-    textLine(centerLine('Caisse CI · ESC/POS')),
+    textLine(centerLine('Nora · ESC/POS')),
     cmdFeed(2),
   )
 
@@ -268,7 +268,7 @@ export function buildEscPosTestPage(): Uint8Array {
     textLine('Toplink TL-R120'),
     cmdDoubleSize(false),
     cmdBold(false),
-    textLine('Test impression CaisseCI'),
+    textLine('Test impression Nora'),
     textLine(new Date().toLocaleString('fr-FR')),
     cmdAlign('left'),
     textLine(dashedLine()),

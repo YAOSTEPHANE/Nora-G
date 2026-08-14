@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-  <rect width="640" height="640" fill="#0f766e"/>
-  <rect x="180" y="240" width="280" height="180" rx="80" fill="#d1fae5"/>
-  <circle cx="250" cy="200" r="28" fill="#ecfeff"/>
-  <circle cx="320" cy="175" r="18" fill="#ecfeff"/>
-  <text x="320" y="570" text-anchor="middle" fill="#d1fae5" font-size="44" font-family="DM Sans, Arial">Hygiène</text>
-</svg>

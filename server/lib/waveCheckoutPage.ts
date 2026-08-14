@@ -1,4 +1,4 @@
-import QRCode from 'qrcode'
+﻿import QRCode from 'qrcode'
 
 export type WaveCheckoutPageInput = {
   amountFcfa: number
@@ -26,7 +26,7 @@ export async function renderWaveCheckoutPage(
 ): Promise<string> {
   const amount = Math.round(input.amountFcfa).toLocaleString('fr-CI')
   const launchUrl = input.launchUrl?.trim() || ''
-  const qrTarget = launchUrl || `caisseci:wave-demo:${input.transactionId}`
+  const qrTarget = launchUrl || `nora:wave-demo:${input.transactionId}`
   const qrDataUrl = await QRCode.toDataURL(qrTarget, {
     margin: 2,
     width: 280,

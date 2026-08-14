@@ -3,10 +3,11 @@ import { useMemo, useState } from 'react'
 import { db } from '../db/db'
 import type { Promotion } from '../db/types'
 import { Button } from '../ui/Button'
-import { Card, CardContent } from '../ui/Card'
+import { Card, CardContent, CardHeader } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
 import { Field, Input, Select } from '../ui/Input'
 import { PageHeader } from '../ui/PageHeader'
+import { IconTag } from '../ui/icons'
 import { useToast } from '../ui/Toast'
 
 type Props = {
@@ -117,15 +118,21 @@ export function PromotionsView({ activeStoreId, canManagePromotions }: Props) {
   }
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
       <PageHeader
+        icon={<IconTag />}
         eyebrow="Marketing"
-        title="Promotions"
+        title="Offres"
         subtitle="Créez des codes promo et pilotez leur activation en caisse"
       />
 
       {canManagePromotions ? (
         <Card>
+          <CardHeader
+            eyebrow="Création"
+            title="Nouvelle offre"
+            subtitle="Code, remise et période d’activation"
+          />
           <CardContent>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-7 lg:items-end">
               <Field label="Code" required>

@@ -1,4 +1,4 @@
-import type { StaffProfile } from './types'
+﻿import type { StaffProfile } from './types'
 import { isCloudApiConfigured } from '../lib/apiUrl'
 import { clientEnv } from '../lib/clientEnv'
 
@@ -46,12 +46,12 @@ const BUILTIN_STAFF_PROFILES: readonly StaffProfile[] = clientEnv.isDev()
     ] as const)
   : []
 
-const CLOUD_STAFF_KEY = 'caisseci-cloud-staff-v1'
-const STORAGE_KEY = 'caisseci-custom-staff-profiles-v1'
-const PASSWORD_OVERRIDES_KEY = 'caisseci-staff-password-overrides-v1'
-const ORG_CREDENTIALS_KEY = 'caisseci-org-credentials-v1'
-const LEGACY_PROFILE_OWNER_KEY = 'caisseci-legacy-profile-owner-v1'
-const CHANGE_EVENT = 'caisseci-staff-profiles-changed'
+const CLOUD_STAFF_KEY = 'nora-cloud-staff-v1'
+const STORAGE_KEY = 'nora-custom-staff-profiles-v1'
+const PASSWORD_OVERRIDES_KEY = 'nora-staff-password-overrides-v1'
+const ORG_CREDENTIALS_KEY = 'nora-org-credentials-v1'
+const LEGACY_PROFILE_OWNER_KEY = 'nora-legacy-profile-owner-v1'
+const CHANGE_EVENT = 'nora-staff-profiles-changed'
 
 function currentOrganizationId(): string | null {
   if (typeof window === 'undefined') return null

@@ -79,6 +79,7 @@ export function paymentBreakdown(sales: Sale[]): Record<PaymentMethod, number> {
     cash: 0,
     card: 0,
     mobile: 0,
+    credit: 0,
     mixed: 0,
   }
   for (const s of sales) {
@@ -90,6 +91,7 @@ export function paymentBreakdown(sales: Sale[]): Record<PaymentMethod, number> {
     m.cash += Math.round(amt.cash * ratio)
     m.card += Math.round(amt.card * ratio)
     m.mobile += Math.round(amt.mobile * ratio)
+    if (s.paymentMethod === 'credit') m.credit += net
     if (s.paymentMethod === 'mixed') m.mixed += net
   }
   return m
@@ -106,6 +108,7 @@ export function paymentStatsByMethod(
     cash: z(),
     card: z(),
     mobile: z(),
+    credit: z(),
     mixed: z(),
   }
   for (const s of sales) {

@@ -1,4 +1,4 @@
-import { clientEnv } from './clientEnv'
+﻿import { clientEnv } from './clientEnv'
 
 function configuredApiOrigin(): string {
   const configured = clientEnv.apiBaseUrl()
@@ -20,12 +20,12 @@ export function isCloudApiConfigured(): boolean {
 
 /**
  * URL d’envoi de la file sync locale → cloud.
- * Préfère `apiUrl('/caisseci/sync')` ; `NEXT_PUBLIC_CLOUD_SYNC_URL` reste un repli legacy.
+ * Préfère `apiUrl('/nora/sync')` ; `NEXT_PUBLIC_CLOUD_SYNC_URL` reste un repli legacy.
  */
 export function cloudSyncPushUrl(): string {
   const legacy = clientEnv.cloudSyncUrl()
   if (legacy) return legacy
-  return apiUrl('/caisseci/sync')
+  return apiUrl('/nora/sync')
 }
 
 /**

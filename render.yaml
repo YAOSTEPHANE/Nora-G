@@ -1,8 +1,8 @@
-# Blueprint Render — CaisseCI (site commercial + app + API)
+# Blueprint Render — Nora (site commercial + app + API)
 # https://render.com/docs/blueprint-spec
 services:
   - type: web
-    name: caisseci
+    name: nora
     runtime: node
     plan: starter
     region: frankfurt

@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useState } from 'react'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { cn } from '../ui/cn'
-import { IconPlus, IconScan, IconSearch, IconSparkles } from '../ui/icons'
+import { IconCaisse, IconPlus, IconScan, IconSearch } from '../ui/icons'
 
 type Props = {
   sessionId: string
@@ -54,49 +54,50 @@ export const CaisseHeader = forwardRef<HTMLInputElement, Props>(
     }, [])
 
     return (
-      <header className="caisse-header mb-3 p-3 sm:mb-5 sm:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[rgba(184,146,46,0.22)] bg-[linear-gradient(145deg,#fffefb,#f7f0e3)] text-amber-600 shadow-[var(--shadow-caisse-card)] sm:h-12 sm:w-12 sm:rounded-2xl">
-              <IconSparkles className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="caisse-session-chip">
-                  Session · {sessionId.slice(0, 8).toUpperCase()}
-                </span>
-                <span className="text-[11px] font-medium tracking-wide text-caisse-muted">
-                  {activeStoreLabel}
-                </span>
-              </div>
-              <p className="mt-1 hidden text-[12px] capitalize text-caisse-muted sm:block">
-                {formatDate(now)}
-              </p>
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="hidden text-[10px] font-semibold uppercase tracking-[0.14em] text-caisse-gold sm:block">
-                Heure caisse
-              </p>
-              <p className="caisse-clock font-mono-nums text-[15px] sm:text-[inherit]">
-                {formatTime(now)}
-              </p>
-            </div>
+      <header className="caisse-header mb-4 p-4 sm:mb-5 sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2">
+              <span className="caisse-session-chip">
+                Session · {sessionId.slice(0, 8).toUpperCase()}
+              </span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-caisse-gold">
+                {activeStoreLabel}
+              </span>
+            </p>
+            <h2 className="mt-2 flex items-center gap-2.5 font-display text-[1.55rem] font-semibold tracking-tight text-caisse-ink sm:text-[1.75rem]">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(0,51,170,0.22)] bg-[linear-gradient(145deg,#f7f8fc,#e8eefa)] text-caisse-gold shadow-[var(--shadow-caisse-card)]">
+                <IconCaisse className="h-5 w-5" />
+              </span>
+              Caisse
+            </h2>
+            <p className="mt-1 hidden capitalize text-[12px] text-caisse-muted sm:block">
+              {formatDate(now)}
+            </p>
           </div>
 
-          {onAddProduct ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft={<IconPlus className="text-emerald-600" />}
-              onClick={onAddProduct}
-              className="shrink-0 border-[rgba(184,146,46,0.25)] bg-white/90 hover:border-[rgba(184,146,46,0.4)] hover:bg-[#fffefb]"
-            >
-              Nouveau produit
-            </Button>
-          ) : null}
+          <div className="flex flex-wrap items-end gap-2 sm:gap-3">
+            <div className="caisse-clock-card">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-caisse-gold">
+                Heure
+              </p>
+              <p className="caisse-clock font-mono-nums">{formatTime(now)}</p>
+            </div>
+            {onAddProduct ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={<IconPlus className="text-caisse-gold" />}
+                onClick={onAddProduct}
+                className="shrink-0 border-[rgba(0,51,170,0.28)] bg-white/90 hover:border-[rgba(0,51,170,0.45)] hover:bg-[#f7f8fc]"
+              >
+                Nouveau produit
+              </Button>
+            ) : null}
+          </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:mt-4 md:grid-cols-2">
+        <div className="caisse-search-bar mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
           <Input
             ref={ref}
             type="text"
@@ -114,7 +115,7 @@ export const CaisseHeader = forwardRef<HTMLInputElement, Props>(
             placeholder="Douchette — scannez ici"
             aria-label="Lecteur code-barres"
             className={cn('font-mono-nums caisse-input-luxe')}
-            iconLeft={<IconScan className="text-sky-600" />}
+            iconLeft={<IconScan className="text-caisse-gold" />}
             autoComplete="off"
             spellCheck={false}
           />
@@ -126,7 +127,7 @@ export const CaisseHeader = forwardRef<HTMLInputElement, Props>(
             placeholder="Rechercher un article…"
             aria-label="Recherche textuelle"
             className="caisse-input-luxe"
-            iconLeft={<IconSearch className="text-violet-600" />}
+            iconLeft={<IconSearch className="text-caisse-muted" />}
             autoComplete="off"
           />
         </div>

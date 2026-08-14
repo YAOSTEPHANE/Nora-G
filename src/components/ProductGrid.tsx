@@ -1,12 +1,12 @@
 import { useMemo, useRef } from 'react'
 import type { ProductWithStock } from '../db/types'
 import { formatFCFA } from '../lib/money'
+import { formatPricePerUnit, formatQty, packHint, saleUnitOf } from '../lib/saleUnit'
 import { useHorizontalWheelScroll } from '../hooks/useHorizontalWheelScroll'
-import { Badge } from '../ui/Badge'
 import { ProductImage } from './ProductImage'
 import { cn } from '../ui/cn'
 import { EmptyState } from '../ui/EmptyState'
-import { IconSearch, IconSparkles } from '../ui/icons'
+import { IconPlus, IconSearch } from '../ui/icons'
 import type { CategoryTab } from './Sidebar'
 
 export type ProductGridDensity = 'compact' | 'confort'
@@ -60,13 +60,13 @@ export function ProductGrid({
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-caisse-gold">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-caisse-gold">
           Catalogue
         </p>
         <div className="flex items-center gap-2">
           {hasSearch ? (
-            <span className="rounded-full border border-[rgba(184,146,46,0.25)] bg-white/90 px-2.5 py-0.5 text-[10px] font-medium text-caisse-muted">
+            <span className="rounded-full border border-[rgba(0,51,170,0.25)] bg-white/90 px-2.5 py-0.5 text-[10px] font-medium text-caisse-muted">
               Filtre actif
             </span>
           ) : null}
@@ -78,7 +78,7 @@ export function ProductGrid({
 
       <div
         ref={categoryScrollRef}
-        className="tabs-scroll-x mb-5 flex gap-2 overflow-x-auto pb-1"
+        className="caisse-filter-bar tabs-scroll-x mb-5 flex gap-2 overflow-x-auto p-1.5"
       >
         {categoryTabs.map((tab) => {
           const on = tab === category
@@ -96,7 +96,7 @@ export function ProductGrid({
                 <span
                   className={cn(
                     'ml-1.5 rounded-full px-1.5 py-px font-mono-nums text-[10px]',
-                    on ? 'bg-white/70 text-caisse-gold' : 'bg-[#f7f0e3] text-caisse-muted',
+                    on ? 'bg-white/70 text-caisse-gold' : 'bg-[#e8eefa] text-caisse-muted',
                   )}
                 >
                   {count}
@@ -117,8 +117,8 @@ export function ProductGrid({
         <div
           className={cn(
             isCompact
-              ? 'grid gap-2 grid-cols-[repeat(auto-fill,minmax(5.75rem,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] lg:grid-cols-[repeat(auto-fill,minmax(6.25rem,1fr))]'
-              : 'grid gap-2 grid-cols-2 min-[400px]:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5',
+              ? 'grid gap-2 grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 xl:grid-cols-10'
+              : 'grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10',
           )}
         >
           {filtered.map((p) => {
@@ -131,87 +131,74 @@ export function ProductGrid({
                 disabled={disabled}
                 onClick={(e) => onAdd(p, e.currentTarget)}
                 className={cn(
-                  'caisse-product-card group text-left disabled:cursor-not-allowed disabled:opacity-45 active:scale-[0.97]',
-                  isCompact
-                    ? 'caisse-product-card--compact flex flex-col items-center gap-1.5 p-2 text-center'
-                    : 'flex min-h-28 flex-col gap-1.5 p-3',
+                  'caisse-product-card caisse-product-card--tile group flex min-w-0 flex-col text-left disabled:cursor-not-allowed disabled:opacity-45',
+                  isCompact && 'caisse-product-card--compact',
                 )}
               >
-                {isCompact ? (
-                  <>
-                    <div className="relative">
-                      <ProductImage
-                        product={p}
-                        className="h-10 w-10 shrink-0 rounded-lg border border-[rgba(184,146,46,0.18)] object-cover shadow-sm"
-                      />
-                      {state === 'rupture' ? (
-                        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-[#fffefb]" title="Rupture" />
-                      ) : state === 'faible' ? (
-                        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-[#fffefb]" title="Stock faible" />
-                      ) : null}
-                    </div>
-                    <p
-                      className={cn(
-                        'line-clamp-2 w-full font-medium leading-tight text-caisse-ink',
-                        'text-[11px]',
-                        disabled && 'text-[#8a919e]',
-                      )}
-                    >
-                      {p.name}
-                    </p>
-                    <p className="caisse-price w-full truncate font-mono-nums text-[12px]">
-                      {formatFCFA(p.priceTTC)}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                <div
-                  className={cn(
-                    'relative z-[1] flex items-start justify-between gap-1.5',
-                    'mb-1',
-                  )}
-                >
+                <div className="caisse-product-media">
                   <ProductImage
                     product={p}
-                    className="h-14 w-14 shrink-0 rounded-lg border border-[rgba(184,146,46,0.18)] object-cover shadow-sm"
+                    className="h-full w-full object-cover"
                   />
                   {state === 'rupture' ? (
-                    <Badge tone="neutral">Rupture</Badge>
-                  ) : state === 'faible' ? (
-                    <Badge tone="warning">Faible</Badge>
-                  ) : (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-[rgba(184,146,46,0.15)] bg-white/80 text-[#c9a962] opacity-0 transition group-hover:opacity-100">
-                      <IconSparkles className="h-2.5 w-2.5" />
+                    <span className="caisse-product-stock caisse-product-stock--out">
+                      Rupture
                     </span>
-                  )}
+                  ) : state === 'faible' ? (
+                    <span className="caisse-product-stock caisse-product-stock--low">
+                      Faible
+                    </span>
+                  ) : !isCompact ? (
+                    <span className="caisse-product-stock caisse-product-stock--ok">
+                      {formatQty(p.stock, saleUnitOf(p))}
+                    </span>
+                  ) : null}
+                  {!disabled ? (
+                    <span className="caisse-product-add" aria-hidden>
+                      <IconPlus className="h-3.5 w-3.5" />
+                    </span>
+                  ) : null}
                 </div>
-                <p
-                  className={cn(
-                    'relative z-[1] line-clamp-2 text-[13px] font-medium leading-tight text-caisse-ink',
-                    disabled && 'text-[#8a919e]',
-                  )}
-                >
-                  {p.name}
-                </p>
-                <div className="relative z-[1] mt-0.5 flex items-baseline justify-between gap-1">
-                  <p className="caisse-price min-w-0 truncate font-mono-nums text-[15px]">
-                    {formatFCFA(p.priceTTC)}
+                <div className="caisse-product-meta">
+                  {!isCompact && p.category ? (
+                    <p className="truncate text-[9px] font-semibold uppercase tracking-[0.12em] text-caisse-muted">
+                      {p.category}
+                    </p>
+                  ) : null}
+                  <p
+                    className={cn(
+                      'min-w-0 truncate font-semibold leading-tight text-caisse-ink',
+                      isCompact ? 'text-[10px]' : 'text-[12px]',
+                      disabled && 'text-[#8a919e]',
+                    )}
+                  >
+                    {p.name}
                   </p>
                   <p
                     className={cn(
-                      'shrink-0 font-mono-nums text-[10px] uppercase tracking-wide',
-                      state === 'rupture'
-                        ? 'text-rose-600'
-                        : state === 'faible'
-                          ? 'text-amber-700'
-                          : 'text-[#8a919e]',
+                      'caisse-price min-w-0 truncate font-mono-nums',
+                      isCompact ? 'text-[10px]' : 'text-[12px]',
                     )}
                   >
-                    {p.stock}
+                    {(() => {
+                      const hint = packHint(p)
+                      return (
+                        <>
+                          {formatPricePerUnit(
+                            p.priceTTC,
+                            saleUnitOf(p),
+                            formatFCFA,
+                          )}
+                          {hint ? (
+                            <span className="ml-1 text-[9px] font-normal text-caisse-muted">
+                              · {hint}
+                            </span>
+                          ) : null}
+                        </>
+                      )
+                    })()}
                   </p>
                 </div>
-                  </>
-                )}
               </button>
             )
           })}

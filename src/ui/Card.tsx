@@ -36,7 +36,7 @@ export function CardHeader({
   return (
     <div
       className={cn(
-        'flex items-start justify-between gap-4 px-5 pt-5',
+        'flex items-start justify-between gap-4 px-5 pt-5 sm:px-6 sm:pt-6',
         className,
       )}
       {...rest}
@@ -54,14 +54,14 @@ export function CardHeader({
 }
 
 export function CardContent({ className, ...rest }: DivProps) {
-  return <div className={cn('px-5 py-5', className)} {...rest} />
+  return <div className={cn('px-5 py-5 sm:px-6 sm:py-6', className)} {...rest} />
 }
 
 export function CardFooter({ className, ...rest }: DivProps) {
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-3 border-t border-border/60 px-5 py-3 text-sm text-ink-subtle',
+        'flex items-center justify-between gap-3 border-t border-border/50 px-5 py-3.5 text-sm text-ink-subtle sm:px-6',
         className,
       )}
       {...rest}

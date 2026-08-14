@@ -5,7 +5,6 @@ import type { StockTransfer, Store } from '../db/types'
 import type { AuditActor } from '../lib/auditLog'
 import { appendAuditEvent } from '../lib/auditLog'
 import { storeStockRowId } from '../lib/storeStockId'
-import { useSubscription } from '../context/SubscriptionContext'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { Card, CardContent } from '../ui/Card'
@@ -38,11 +37,14 @@ export function MultiStoreView({
   auditActor,
 }: Props) {
   const toast = useToast()
-  const { subscription } = useSubscription()
-  const maxStores = subscription?.plan.maxStores ?? 0
+  const maxStores = 0
   const [tab, setTab] = useState<Tab>('consolidated')
   const stores =
     useLiveQuery(() => db.stores.orderBy('sortOrder').toArray(), [], []) ?? []
+  const activeStores = useMemo(
+    () => stores.filter((s) => !s.archived),
+    [stores],
+  )
   const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
   const allStocks = useLiveQuery(() => db.storeStocks.toArray(), [], []) ?? []
   const transfers =
@@ -197,7 +199,7 @@ export function MultiStoreView({
       toast.error('Nom et code requis')
       return
     }
-    if (maxStores > 0 && stores.length >= maxStores) {
+    if (maxStores > 0 && activeStores.length >= maxStores) {
       toast.error(
         'Limite de magasins atteinte',
         `Votre plan autorise ${maxStores} magasin(s). Passez à un plan supérieur.`,
@@ -212,6 +214,7 @@ export function MultiStoreView({
         name,
         shortCode: sc,
         sortOrder: maxSort,
+        archived: false,
       }
       await db.stores.add(s)
       await ensureAllStoreStockRows()
@@ -221,7 +224,25 @@ export function MultiStoreView({
     } finally {
       setStoreBusy(false)
     }
-  }, [newStoreName, newStoreCode, stores, toast, maxStores])
+  }, [newStoreName, newStoreCode, stores, activeStores.length, toast, maxStores])
+
+  const archiveStore = useCallback(
+    async (store: Store, archived: boolean) => {
+      if (archived && activeStores.length <= 1) {
+        toast.error(
+          'Dernier magasin',
+          'Archivez seulement s’il reste au moins un magasin actif.',
+        )
+        return
+      }
+      await db.stores.update(store.id, { archived })
+      toast.success(
+        archived ? 'Magasin archivé' : 'Magasin réactivé',
+        store.name,
+      )
+    },
+    [activeStores.length, toast],
+  )
 
   const tabs = useMemo(() => {
     const arr: Array<{ id: Tab; label: string }> = [
@@ -234,10 +255,11 @@ export function MultiStoreView({
   }, [canConfigureStores])
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
       <PageHeader
+        icon={<IconNetwork />}
         eyebrow="Réseau"
-        title="Multi-magasins"
+        title="Magasins"
         subtitle="Stocks par site, transferts internes et configuration"
       />
 
@@ -250,11 +272,11 @@ export function MultiStoreView({
           <div className="min-w-0">
             <TableScrollHint />
             <div className="hidden md:block">
-              <Table minWidth={Math.max(560, 220 + stores.length * 80 + 80)}>
+              <Table minWidth={Math.max(560, 220 + activeStores.length * 80 + 80)}>
                 <THead>
                   <Tr hover={false}>
                     <Th sticky>Article</Th>
-                    {stores.map((s) => (
+                    {activeStores.map((s) => (
                       <Th key={s.id} align="right">
                         {s.shortCode}
                       </Th>
@@ -274,7 +296,7 @@ export function MultiStoreView({
                             {p.barcode}
                           </span>
                         </Td>
-                        {stores.map((s) => {
+                        {activeStores.map((s) => {
                           const q = row?.get(s.id) ?? 0
                           total += q
                           return (
@@ -301,7 +323,7 @@ export function MultiStoreView({
               {sortedProducts.map((p) => {
                 const row = stockMatrix.get(p.id)
                 let total = 0
-                const perStore = stores.map((s) => {
+                const perStore = activeStores.map((s) => {
                   const q = row?.get(s.id) ?? 0
                   total += q
                   return { code: s.shortCode, name: s.name, q }
@@ -361,7 +383,7 @@ export function MultiStoreView({
                       onChange={(e) => setFromId(e.target.value)}
                     >
                       <option value="">—</option>
-                      {stores.map((s) => (
+                      {activeStores.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
                         </option>
@@ -374,7 +396,7 @@ export function MultiStoreView({
                       onChange={(e) => setToId(e.target.value)}
                     >
                       <option value="">—</option>
-                      {stores.map((s) => (
+                      {activeStores.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
                         </option>
@@ -474,7 +496,7 @@ export function MultiStoreView({
           <SectionHeader title="Points de vente" />
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {stores.map((s) => (
-              <Card key={s.id}>
+              <Card key={s.id} className={s.archived ? 'opacity-70' : undefined}>
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500">
@@ -489,7 +511,18 @@ export function MultiStoreView({
                       </p>
                     </div>
                   </div>
-                  <Badge tone="neutral" className="shrink-0">Actif</Badge>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge tone={s.archived ? 'neutral' : 'success'}>
+                      {s.archived ? 'Archivé' : 'Actif'}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void archiveStore(s, !s.archived)}
+                    >
+                      {s.archived ? 'Réactiver' : 'Archiver'}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -506,7 +539,7 @@ export function MultiStoreView({
               <p className="mb-3 text-[12px] text-zinc-500">
                 Stocks initialisés à 0 pour tous les articles.
                 {maxStores > 0
-                  ? ` Quota plan : ${stores.length}/${maxStores} magasin(s).`
+                  ? ` Quota plan : ${activeStores.length}/${maxStores} magasin(s).`
                   : ''}
               </p>
               <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
@@ -514,7 +547,7 @@ export function MultiStoreView({
                   <Input
                     value={newStoreName}
                     onChange={(e) => setNewStoreName(e.target.value)}
-                    disabled={maxStores > 0 && stores.length >= maxStores}
+                    disabled={maxStores > 0 && activeStores.length >= maxStores}
                   />
                 </Field>
                 <Field label="Code" required className="sm:w-32">
@@ -523,14 +556,14 @@ export function MultiStoreView({
                     onChange={(e) => setNewStoreCode(e.target.value)}
                     maxLength={6}
                     className="uppercase"
-                    disabled={maxStores > 0 && stores.length >= maxStores}
+                    disabled={maxStores > 0 && activeStores.length >= maxStores}
                   />
                 </Field>
                 <Button
                   variant="accent"
                   iconLeft={<IconPlus />}
                   loading={storeBusy}
-                  disabled={maxStores > 0 && stores.length >= maxStores}
+                  disabled={maxStores > 0 && activeStores.length >= maxStores}
                   onClick={() => void addStore()}
                   className="w-full sm:w-auto"
                 >

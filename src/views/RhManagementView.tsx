@@ -6,11 +6,13 @@ import { db } from '../db/db'
 import type { HrRequest, HrRequestStatus, HrRequestType, TimePunch } from '../db/types'
 import { saleLocalYmd } from '../lib/salesStats'
 import { Button } from '../ui/Button'
-import { Card, CardContent } from '../ui/Card'
+import { Card, CardContent, CardHeader } from '../ui/Card'
+import { FormGrid, FormPanel } from '../ui/Form'
 import { EmptyState } from '../ui/EmptyState'
 import { Field, Input, Select } from '../ui/Input'
 import { Kpi } from '../ui/Kpi'
 import { PageHeader } from '../ui/PageHeader'
+import { IconPersonnel } from '../ui/icons'
 import { Table, TBody, Td, Th, THead, Tr } from '../ui/Table'
 import { MobileDataCard, ResponsiveData } from '../ui/ResponsiveData'
 import { useToast } from '../ui/Toast'
@@ -124,8 +126,13 @@ export function RhManagementView({ actor, canReview }: Props) {
   }
 
   return (
-    <div className="space-y-5 pb-6">
-      <PageHeader eyebrow="Ressources Humaines" title="Gestion RH" subtitle="Demandes RH, suivi de présence et validation manager" />
+    <div className="module-page">
+      <PageHeader
+        icon={<IconPersonnel />}
+        eyebrow="Ressources humaines"
+        title="RH"
+        subtitle="Demandes et validations manager"
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Kpi label="Demandes en attente" value={String(kpis.pending)} tone="amber" />
@@ -133,8 +140,17 @@ export function RhManagementView({ actor, canReview }: Props) {
         <Kpi label="Absents aujourd’hui" value={String(kpis.absentToday)} tone="neutral" />
       </div>
 
-      <Card className="bg-[linear-gradient(165deg,rgba(255,255,255,0.98),rgba(246,250,255,0.94))]">
-        <CardContent className="grid gap-2 md:grid-cols-3">
+      <FormPanel
+        eyebrow="Demande"
+        title="Nouvelle demande"
+        description="Congé, avance ou remboursement."
+        actions={
+          <Button variant="accent" onClick={() => void createRequest()}>
+            Soumettre la demande
+          </Button>
+        }
+      >
+        <FormGrid columns={3}>
           <Field label="Collaborateur">
             <Select value={staffProfileId} onChange={(e) => setStaffProfileId(e.target.value)}>
               {profiles.map((p) => (
@@ -160,18 +176,14 @@ export function RhManagementView({ actor, canReview }: Props) {
           <Field label="Date fin">
             <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </Field>
-          <Field label="Motif" className="md:col-span-3">
+          <Field label="Motif" className="lg:col-span-3">
             <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motif de la demande..." />
           </Field>
-          <div className="md:col-span-3">
-            <Button variant="accent" fullWidth className="sm:w-auto" onClick={() => void createRequest()}>
-              Soumettre la demande
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        </FormGrid>
+      </FormPanel>
 
-      <Card className="bg-[linear-gradient(165deg,rgba(255,255,255,0.98),rgba(246,250,255,0.94))]">
+      <Card>
+        <CardHeader title="Suivi des demandes" subtitle="Validation manager et historique" />
         <CardContent>
           {requests.length === 0 ? (
             <EmptyState title="Aucune demande RH" variant="flat" />

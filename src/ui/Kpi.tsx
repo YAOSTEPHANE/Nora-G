@@ -13,11 +13,29 @@ export type KpiTone = 'neutral' | 'accent' | 'violet' | 'amber' | 'sky' | 'rose'
 
 const SPARK_COLOR: Record<KpiTone, string> = {
   neutral: '#5f6f8d',
-  accent: '#1463ff',
+  accent: '#0033aa',
   violet: '#7452d8',
   amber: '#c98613',
   sky: '#2a86d4',
   rose: '#d84b7a',
+}
+
+const TONE_BAR: Record<KpiTone, string> = {
+  neutral: 'bg-[#5f6f8d]',
+  accent: 'bg-[#0033aa]',
+  violet: 'bg-[#7452d8]',
+  amber: 'bg-[#c98613]',
+  sky: 'bg-[#2a86d4]',
+  rose: 'bg-[#d84b7a]',
+}
+
+const TONE_ICON: Record<KpiTone, string> = {
+  neutral: 'bg-slate-100 text-slate-600',
+  accent: 'bg-[#e8eefa] text-[#0033aa]',
+  violet: 'bg-violet-50 text-violet-700',
+  amber: 'bg-amber-50 text-amber-700',
+  sky: 'bg-sky-50 text-sky-700',
+  rose: 'bg-rose-50 text-rose-700',
 }
 
 export function Kpi({
@@ -55,19 +73,31 @@ export function Kpi({
   return (
     <div
       className={cn(
-        'ui-card relative overflow-hidden p-4 before:pointer-events-none before:absolute before:inset-0 before:bg-linear-to-br before:from-white/60 before:to-transparent',
+        'ui-card relative overflow-hidden p-4 sm:p-5 before:pointer-events-none before:absolute before:inset-0 before:bg-linear-to-br before:from-white/70 before:to-transparent',
         className,
       )}
     >
+      <span
+        className={cn(
+          'absolute bottom-4 left-0 top-4 w-0.5 rounded-full',
+          TONE_BAR[tone],
+        )}
+        aria-hidden
+      />
       <div className="flex items-start justify-between gap-3">
         <p className="ui-eyebrow">{label}</p>
         {icon ? (
-          <span className="text-ink-subtle [&_svg]:h-3.5 [&_svg]:w-3.5">
+          <span
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-xl [&_svg]:h-3.5 [&_svg]:w-3.5',
+              TONE_ICON[tone],
+            )}
+          >
             {icon}
           </span>
         ) : null}
       </div>
-      <p className="mt-2 truncate font-mono-nums text-[20px] font-semibold tracking-tight text-ink sm:text-[22px]">
+      <p className="mt-2.5 truncate font-mono-nums text-[22px] font-semibold tracking-tight text-ink sm:text-[24px]">
         {value}
       </p>
       <div className="mt-1 flex items-center gap-2 text-[12px]">

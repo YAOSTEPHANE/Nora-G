@@ -21,18 +21,18 @@ describe('subscriptionPlans helpers', () => {
     expect(parsePlanId('business')).toBe('business')
   })
 
-  it('isSubscriptionUsable gère essai actif', () => {
-    const future = new Date(Date.now() + 86_400_000)
-    expect(isSubscriptionUsable('trialing', null, future)).toBe(true)
+  it('isSubscriptionUsable toujours vrai', () => {
+    expect(isSubscriptionUsable('expired', null, null)).toBe(true)
   })
 })
 
 describe('quotaEnforcement', () => {
-  it('planLimits expose maxStaff', () => {
-    expect(planLimits({ planId: 'starter' } as never).maxStaff).toBe(3)
+  it('planLimits n’impose plus de quotas', () => {
+    expect(planLimits({ planId: 'starter' } as never).maxStaff).toBe(0)
+    expect(planLimits({ planId: 'business' } as never).maxStores).toBe(0)
   })
 
-  it('assertSubscriptionActive bloque expired', () => {
+  it('assertSubscriptionActive n’bloque plus', () => {
     expect(
       assertSubscriptionActive({
         status: 'expired',
@@ -40,7 +40,7 @@ describe('quotaEnforcement', () => {
         trialEndsAt: null,
         planId: 'starter',
       } as never),
-    ).toMatch(/expiré/i)
+    ).toBeNull()
   })
 })
 

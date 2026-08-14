@@ -10,12 +10,13 @@ import type {
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { Card, CardContent } from '../ui/Card'
+import { FormGrid, FormPanel } from '../ui/Form'
 import { EmptyState } from '../ui/EmptyState'
 import { Field, Input, Select } from '../ui/Input'
 import { Kpi } from '../ui/Kpi'
 import { PageHeader } from '../ui/PageHeader'
 import { useToast } from '../ui/Toast'
-import { IconClock, IconPlus, IconStore, IconUser } from '../ui/icons'
+import { IconClock, IconStore, IconUser } from '../ui/icons'
 import {
   APP_SETTINGS_CHANGED_EVENT,
   getAppSettings,
@@ -594,37 +595,56 @@ export function TablesManagementView({
     })
   }
 
+  const deleteTable = async (table: DiningTable): Promise<void> => {
+    if (!canManageTables) return
+    if (table.status !== 'free') {
+      toast.error(
+        'Table occupée',
+        'Libérez la table avant de la supprimer.',
+      )
+      return
+    }
+    const blocking = reservations.some(
+      (r) =>
+        r.tableId === table.id &&
+        (r.status === 'pending' ||
+          r.status === 'confirmed' ||
+          r.status === 'seated'),
+    )
+    if (blocking) {
+      toast.error(
+        'Réservation en cours',
+        'Annulez les réservations actives avant de supprimer la table.',
+      )
+      return
+    }
+    const ok = window.confirm(`Supprimer la table « ${table.name} » ?`)
+    if (!ok) return
+    await db.diningTables.delete(table.id)
+    if (selectedTableId === table.id) setSelectedTableId('')
+    toast.success('Table supprimée', table.name)
+  }
+
   return (
-    <div className="space-y-4 pb-6 sm:space-y-5">
+    <div className="module-page">
       <PageHeader
+        icon={<IconStore />}
         eyebrow="Salle"
-        title="Gestion des tables"
+        title="Tables"
         subtitle="Plan de salle interactif, suivi d’occupation et réservations clients"
       />
 
-      <Card>
-        <CardContent className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5">
-            <p className="text-[11px] font-medium text-zinc-500">Magasin actif</p>
-            <p className="mt-1 flex items-center gap-1.5 text-[13px] font-semibold text-zinc-900">
-              <IconStore className="h-3.5 w-3.5 text-zinc-400" />
-              {activeStoreLabel}
-            </p>
-          </div>
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-emerald-900">
-            <p className="text-[11px] font-medium">Libres</p>
-            <p className="text-xl font-bold leading-none">{summary.free}</p>
-          </div>
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-rose-900">
-            <p className="text-[11px] font-medium">Occupées</p>
-            <p className="text-xl font-bold leading-none">{summary.occupied}</p>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-amber-900">
-            <p className="text-[11px] font-medium">Réservées</p>
-            <p className="text-xl font-bold leading-none">{summary.reserved}</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi
+          label="Magasin actif"
+          value={activeStoreLabel}
+          tone="neutral"
+          icon={<IconStore />}
+        />
+        <Kpi label="Libres" value={String(summary.free)} tone="accent" />
+        <Kpi label="Occupées" value={String(summary.occupied)} tone="rose" />
+        <Kpi label="Réservées" value={String(summary.reserved)} tone="amber" />
+      </div>
 
       <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
@@ -667,42 +687,40 @@ export function TablesManagementView({
       </div>
 
       {canManageTables ? (
-        <Card>
-          <CardContent>
-            <div className="mb-3 flex items-center gap-2">
-              <IconPlus className="h-4 w-4 text-zinc-500" />
-              <h2 className="text-[14px] font-semibold text-zinc-900">
-                Ajouter une table
-              </h2>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-[1fr_120px_1fr_auto] sm:items-end">
-              <Field label="Nom" required>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Table 9"
-                />
-              </Field>
-              <Field label="Capacité" required>
-                <Input
-                  inputMode="numeric"
-                  value={capacity}
-                  onChange={(e) => setCapacity(e.target.value)}
-                />
-              </Field>
-              <Field label="Zone">
-                <Input
-                  value={area}
-                  onChange={(e) => setArea(e.target.value)}
-                  placeholder="Terrasse"
-                />
-              </Field>
-              <Button loading={busy} variant="accent" onClick={() => void createTable()}>
-                Ajouter
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <FormPanel
+          eyebrow="Salle"
+          title="Ajouter une table"
+          description="Nom, capacité et zone de service."
+          actions={
+            <Button loading={busy} variant="accent" onClick={() => void createTable()}>
+              Ajouter
+            </Button>
+          }
+        >
+          <FormGrid columns={3}>
+            <Field label="Nom" required>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Table 9"
+              />
+            </Field>
+            <Field label="Capacité" required>
+              <Input
+                inputMode="numeric"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+              />
+            </Field>
+            <Field label="Zone">
+              <Input
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+                placeholder="Terrasse"
+              />
+            </Field>
+          </FormGrid>
+        </FormPanel>
       ) : null}
 
       <Card>
@@ -872,6 +890,14 @@ export function TablesManagementView({
                     Descendre
                   </Button>
                 </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => void deleteTable(selectedTable)}
+                >
+                  Supprimer la table
+                </Button>
               </div>
             ) : null}
             {canManageTables ? (

@@ -1,6 +1,6 @@
-# CaisseCI — Documentation complète
+# Nora — Documentation complète
 
-**Caisse CI** — Caisse enregistreuse et gestion magasin **offline-first**, adaptée aux commerces en Côte d’Ivoire.
+**Nora** — Caisse enregistreuse et gestion magasin **offline-first**, adaptée aux commerces en Côte d’Ivoire.
 
 ---
 
@@ -17,7 +17,7 @@
 
 ## Résumé produit
 
-CaisseCI regroupe sur une seule plateforme :
+Nora regroupe sur une seule plateforme :
 
 - **Encaissement** (POS) avec scan, catégories, remises, fidélité et multi-paiements
 - **Catalogue & stocks** avec alertes, inventaire et exports CSV
@@ -75,4 +75,4 @@ API : http://localhost:4000 — App : http://localhost:5173
 ## Support
 
 Voir [documentation-utilisateur.md](documentation-utilisateur.md) et [documentation-modules.md](documentation-modules.md).  
-Contact : **Caisse CI**.
+Contact : **Nora**.

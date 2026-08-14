@@ -41,35 +41,6 @@ export type SubscriptionSnapshot = {
   cachedAt: number
 }
 
-export type MobileMoneyPaymentRecord = {
-  id: string
-  transactionId: string
-  planId: PlanId
-  planName: string
-  channel: string
-  channelLabel: string
-  amountFcfa: number
-  customerPhone: string
-  status: string
-  paymentMethod: string | null
-  paidAt: string | null
-  createdAt: string
-}
-
-export type MobileMoneyChannelId =
-  | 'orange_money'
-  | 'wave'
-  | 'mtn_momo'
-  | 'moov'
-
-export type MobileMoneyChannel = {
-  id: MobileMoneyChannelId
-  label: string
-  description: string
-  prefixes: string[]
-  provider?: 'wave' | 'cinetpay' | null
-}
-
 export type OrganizationCredentials = {
   licenseKey: string
   sessionToken?: string

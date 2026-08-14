@@ -13,6 +13,8 @@ import {
 } from '../lib/cashOutflows'
 import { periodMarginTotals } from '../lib/marginAnalytics'
 import { formatFCFA } from '../lib/money'
+import { getAppSettings } from '../lib/appSettings'
+import { featuresForDomain } from '../lib/businessDomain'
 import { paymentMethodShortLabel } from '../lib/paymentDisplay'
 import { saleFullyRefunded, saleNetTTC } from '../lib/refundMath'
 import {
@@ -42,7 +44,7 @@ import {
   IconSearch,
 } from '../ui/icons'
 
-type ReportTab = 'overview' | 'sales' | 'audit' | 'closure'
+type ReportTab = 'overview' | 'sales' | 'audit' | 'closure' | 'prescriptions'
 
 function auditKindLabel(k: AuditEventKind): string {
   switch (k) {
@@ -148,6 +150,9 @@ export function JournalReportView({
   onViewReceipt,
 }: Props) {
   const toast = useToast()
+  const showPrescriptions = featuresForDomain(
+    getAppSettings().businessDomain,
+  ).prescription
   const sales = useLiveQuery(() => db.sales.toArray(), [], []) ?? []
   const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
   const allCashOutflows =
@@ -155,6 +160,12 @@ export function JournalReportView({
   const allAuditEvents =
     useLiveQuery(
       () => db.auditEvents.orderBy('createdAt').reverse().limit(120).toArray(),
+      [],
+      [],
+    ) ?? []
+  const prescriptionsToday =
+    useLiveQuery(
+      () => db.prescriptions.orderBy('createdAt').reverse().limit(100).toArray(),
       [],
       [],
     ) ?? []
@@ -243,6 +254,12 @@ export function JournalReportView({
   const [pendingClosureUntil, setPendingClosureUntil] = useState(0)
   const [pendingReopenUntil, setPendingReopenUntil] = useState(0)
   const [reportTab, setReportTab] = useState<ReportTab>('overview')
+
+  useEffect(() => {
+    if (reportTab === 'prescriptions' && !showPrescriptions) {
+      setReportTab('overview')
+    }
+  }, [reportTab, showPrescriptions])
   const [saleSearch, setSaleSearch] = useState('')
 
   useEffect(() => {
@@ -563,10 +580,11 @@ export function JournalReportView({
   }, [closureHistory, todayYmd, toast])
 
   return (
-    <div className="space-y-4 pb-6 sm:space-y-5">
+    <div className="module-page">
       <PageHeader
+        icon={<IconCheckCircle />}
         eyebrow="Rapport quotidien"
-        title="Journal de caisse"
+        title="Journal"
         subtitle={`${dateStr.charAt(0).toUpperCase()}${dateStr.slice(1)} · ${currentProfile.displayName} · Session #${SESSION_ID}`}
         actions={
           <div className="flex flex-wrap gap-2">
@@ -643,6 +661,15 @@ export function JournalReportView({
           { id: 'overview', label: 'Synthèse' },
           { id: 'sales', label: 'Ventes', count: today.length },
           { id: 'audit', label: 'Audit', count: auditEvents.length },
+          ...(showPrescriptions
+            ? [
+                {
+                  id: 'prescriptions' as const,
+                  label: 'Ordonnances',
+                  count: prescriptionsToday.length || undefined,
+                },
+              ]
+            : []),
           { id: 'closure', label: 'Clôture' },
         ]}
       />
@@ -1146,6 +1173,53 @@ export function JournalReportView({
           </>
         )}
         </>
+        ) : null}
+
+        {reportTab === 'prescriptions' ? (
+          <>
+            <SectionHeader
+              title="Ordonnances enregistrées"
+              subtitle="30 derniers jours · liées aux ventes avec produits soumis à prescription"
+            />
+            {prescriptionsToday.length === 0 ? (
+              <EmptyState
+                title="Aucune ordonnance"
+                description="Les ordonnances saisies à la caisse apparaîtront ici."
+                variant="flat"
+              />
+            ) : (
+              <Card className="rounded-2xl">
+                <CardContent className="p-0!">
+                  <ul className="divide-y divide-zinc-100">
+                    {prescriptionsToday.map((rx) => (
+                      <li key={rx.id} className="px-4 py-3 text-[12px]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-zinc-900">
+                            {rx.patientName}
+                          </span>
+                          <time className="font-mono-nums text-[11px] text-zinc-500">
+                            {new Date(rx.createdAt).toLocaleString('fr-FR')}
+                          </time>
+                        </div>
+                        <p className="mt-1 text-zinc-600">
+                          {rx.prescriberName ? `Dr. ${rx.prescriberName}` : '—'}
+                          {rx.prescriptionNumber
+                            ? ` · N° ${rx.prescriptionNumber}`
+                            : ''}
+                          {rx.mutuelleName ? ` · ${rx.mutuelleName}` : ''}
+                        </p>
+                        <p className="font-mono-nums text-[11px] text-zinc-500">
+                          {rx.saleId
+                            ? `Vente ${rx.saleId.slice(0, 8).toUpperCase()}`
+                            : 'Saisie registre'}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+          </>
         ) : null}
 
         {reportTab === 'audit' ? (

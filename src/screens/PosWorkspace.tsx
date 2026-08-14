@@ -4,84 +4,38 @@ import { LoginScreen } from '../components/LoginScreen'
 import { OfflineBanner } from '../components/OfflineBanner'
 import { ActiveStoreProvider } from '../context/ActiveStoreContext'
 import { useStaffSession } from '../context/StaffSessionContext'
-import { useSubscription } from '../context/SubscriptionContext'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { ROUTES, useSitePath } from '../lib/siteRoutes'
 import { Shell } from '../Shell'
-import { LuxuryStorefrontView } from '../views/LuxuryStorefrontView'
-import { NoOrgStaffGate } from './AuthScreen'
 import { SubscriptionLoadingGate } from './SubscriptionLoadingGate'
 
-type PosMode = 'storefront' | 'staff'
-
 /**
- * Espace magasin connecté : boutique luxe, login caissier ou shell caisse.
+ * Espace caisse : login PIN staff puis Shell.
+ * Plus de tunnel SaaS (email / mot de passe organisation).
  */
-export function PosWorkspace({ mode }: { mode: PosMode }) {
+export function PosWorkspace({ mode: _mode }: { mode: 'storefront' | 'staff' }) {
   const online = useOnlineStatus()
-  const { organization } = useSubscription()
   const {
     staff,
     seedReady,
     seedError,
-    showStaffLogin,
     canSwitchStore,
-    setShowStaffLogin,
     handleLogin,
     handleLogout,
     retrySeed,
   } = useStaffSession()
   const [, navigate] = useSitePath()
 
-  // Spinner tant que l’org n’est pas hydratée depuis localStorage (évite flash NoOrg).
-  if (!organization) {
-    return (
-      <SubscriptionLoadingGate>
-        {mode === 'staff' ? <NoOrgStaffGate /> : null}
-      </SubscriptionLoadingGate>
-    )
-  }
-
-  const forceStaffLogin = mode === 'staff' || showStaffLogin
-
   return (
     <SubscriptionLoadingGate>
       <ActiveStoreProvider canSwitchStore={canSwitchStore}>
         {!staff ? (
-          forceStaffLogin ? (
-            <div className="flex min-h-svh flex-col overflow-y-auto bg-zinc-50">
-              {!online ? <OfflineBanner /> : null}
-              <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-2 px-4 pt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowStaffLogin(false)
-                    if (mode === 'staff') navigate(ROUTES.home)
-                  }}
-                  className="ui-btn ui-btn-secondary"
-                >
-                  ← Retour boutique en ligne
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate(ROUTES.subscription)}
-                  className="ui-btn ui-btn-primary"
-                >
-                  Mon abonnement
-                </button>
-              </div>
-              <div className="flex flex-1 flex-col">
-                <LoginScreen onSuccess={handleLogin} />
-              </div>
+          <div className="flex h-svh min-h-0 flex-col overflow-hidden">
+            {!online ? <OfflineBanner /> : null}
+            <div className="flex min-h-0 flex-1 flex-col">
+              <LoginScreen onSuccess={handleLogin} />
             </div>
-          ) : (
-            <LuxuryStorefrontView
-              online={online}
-              seedReady={seedReady}
-              onOpenStaffLogin={() => setShowStaffLogin(true)}
-              onOpenOwnerSpace={() => navigate(ROUTES.subscription)}
-            />
-          )
+          </div>
         ) : !seedReady ? (
           <div className="flex min-h-svh flex-col bg-zinc-50">
             {!online ? <OfflineBanner /> : null}
@@ -111,7 +65,7 @@ export function PosWorkspace({ mode }: { mode: PosMode }) {
                 type="button"
                 onClick={() => {
                   handleLogout()
-                  navigate(ROUTES.subscription)
+                  navigate(ROUTES.staff)
                 }}
                 className="ui-btn ui-btn-ghost"
               >
@@ -125,7 +79,7 @@ export function PosWorkspace({ mode }: { mode: PosMode }) {
             online={online}
             onLogout={() => {
               handleLogout()
-              navigate(ROUTES.subscription)
+              navigate(ROUTES.staff)
             }}
           />
         )}
@@ -136,8 +90,4 @@ export function PosWorkspace({ mode }: { mode: PosMode }) {
 
 export function StaffScreen() {
   return <PosWorkspace mode="staff" />
-}
-
-export function HomePosScreen() {
-  return <PosWorkspace mode="storefront" />
 }

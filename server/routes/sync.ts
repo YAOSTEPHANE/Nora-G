@@ -10,7 +10,8 @@ import { syncBatchSchema } from '../validators/sync.js'
 
 export const syncRouter = Router()
 
-syncRouter.post('/caisseci/sync', async (req, res) => {
+// Routes sync Nora.
+syncRouter.post('/nora/sync', async (req, res) => {
   try {
     const org = await requireActiveOrg(req, res)
     if (!org) return
@@ -75,7 +76,7 @@ syncRouter.post('/caisseci/sync', async (req, res) => {
   }
 })
 
-syncRouter.get('/caisseci/sync/pull', async (req, res) => {
+syncRouter.get('/nora/sync/pull', async (req, res) => {
   try {
     const org = await requireActiveOrg(req, res)
     if (!org) return
@@ -137,6 +138,7 @@ syncRouter.get('/caisseci/sync/pull', async (req, res) => {
       integrations: integration?.config ?? {},
       sales: deltas.sales,
       stockUpdates: deltas.stockUpdates,
+      productUpdates: deltas.productUpdates,
       organization: {
         storeCode: org.storeCode,
         planId: org.planId,

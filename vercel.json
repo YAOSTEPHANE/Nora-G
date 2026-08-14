@@ -1,7 +1,7 @@
-{
+﻿{
   "framework": "nextjs",
   "installCommand": "npm ci",
-  "buildCommand": "npx prisma generate && npm run build -w @caisseci/web",
+  "buildCommand": "npx prisma generate && npm run build -w @nora/web",
   "functions": {
     "apps/web/api/index.ts": {
       "maxDuration": 60,

@@ -1,6 +1,7 @@
 import { db } from '../db/db'
 import type { RefundRecord } from '../db/types'
 import { appendAuditEvent } from './auditLog'
+import { restoreTrackedStockForRefund } from './productTracking'
 import { storeStockRowId } from './storeStockId'
 import type { LineRefundQtyMap } from './refundMath'
 import { computeRefundFromLineQty } from './refundMath'
@@ -45,10 +46,15 @@ export async function applySaleRefund(params: {
 
   return db.transaction(
     'rw',
-    db.sales,
-    db.storeStocks,
-    db.refunds,
-    db.auditEvents,
+    [
+      db.sales,
+      db.storeStocks,
+      db.productLots,
+      db.productSerialUnits,
+      db.products,
+      db.refunds,
+      db.auditEvents,
+    ],
     async () => {
       const sale = await db.sales.get(params.saleId)
       if (!sale) throw new Error('Vente introuvable.')
@@ -74,15 +80,30 @@ export async function applySaleRefund(params: {
       }
 
       for (const adj of computed.adjustments) {
-        const rid = storeStockRowId(storeId, adj.productId)
-        const row = await db.storeStocks.get(rid)
-        const cur = row?.stock ?? 0
-        await db.storeStocks.put({
-          id: rid,
-          storeId,
-          productId: adj.productId,
-          stock: cur + adj.qty,
-        })
+        const saleLine = sale.lines.find((l) => l.productId === adj.productId)
+        const product = await db.products.get(adj.productId)
+        if (
+          product &&
+          (product.trackLots || product.trackSerialNumbers) &&
+          saleLine
+        ) {
+          await restoreTrackedStockForRefund({
+            storeId,
+            productId: adj.productId,
+            qty: adj.qty,
+            saleLine,
+          })
+        } else {
+          const rid = storeStockRowId(storeId, adj.productId)
+          const row = await db.storeStocks.get(rid)
+          const cur = row?.stock ?? 0
+          await db.storeStocks.put({
+            id: rid,
+            storeId,
+            productId: adj.productId,
+            stock: cur + adj.qty,
+          })
+        }
       }
 
       const refundId = crypto.randomUUID()

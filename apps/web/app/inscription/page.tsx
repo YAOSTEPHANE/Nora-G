@@ -1,7 +1,5 @@
-'use client'
-
-import { AuthScreen } from '../../src/screens/AuthScreen'
+import { redirect } from 'next/navigation'
 
 export default function InscriptionPage() {
-  return <AuthScreen />
+  redirect('/staff')
 }

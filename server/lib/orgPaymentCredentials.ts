@@ -78,7 +78,7 @@ function publicBaseUrl(): string {
   ).replace(/\/$/, '')
 }
 
-/** Clés globales plateforme (abonnement CaisseCI). */
+/** Clés globales plateforme (abonnement Nora). */
 export function platformPaymentCreds(): PaymentProviderCreds {
   const s = getPaymentSecrets()
   return {

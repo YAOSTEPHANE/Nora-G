@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from './cn'
+import { IconSparkles } from './icons'
 
 export function EmptyState({
   icon,
@@ -21,15 +22,13 @@ export function EmptyState({
       className={cn(
         'flex flex-col items-center justify-center gap-3 px-6 py-12 text-center',
         variant === 'card' &&
-          'rounded-xl border border-dashed border-border bg-white/75 shadow-[0_8px_24px_-20px_rgba(23,32,51,0.18)]',
+          'rounded-2xl border border-dashed border-[rgba(0,51,170,0.22)] bg-[linear-gradient(180deg,rgba(247,248,252,0.9),rgba(238,241,248,0.7))] shadow-[0_18px_40px_-28px_rgba(23,32,51,0.22)]',
         className,
       )}
     >
-      {icon ? (
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-accent-soft text-accent-strong [&_svg]:h-5 [&_svg]:w-5">
-          {icon}
-        </div>
-      ) : null}
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[rgba(0,51,170,0.2)] bg-caisse-gold-soft text-caisse-gold [&_svg]:h-5 [&_svg]:w-5">
+        {icon ?? <IconSparkles />}
+      </div>
       <div className="max-w-sm space-y-1">
         <p className="text-sm font-semibold text-ink">{title}</p>
         {description ? (

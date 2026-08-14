@@ -1,332 +1,123 @@
-import type { ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  Award,
+  BookOpen,
+  Briefcase,
+  Cable,
+  Calculator,
+  CalendarClock,
+  ChefHat,
+  ContactRound,
+  FileText,
+  LayoutDashboard,
+  Package,
+  Percent,
+  PieChart,
+  Receipt,
+  ShoppingBag,
+  SlidersHorizontal,
+  Store,
+  Truck,
+  Users,
+  UtensilsCrossed,
+  Wallet,
+  Warehouse,
+  Wrench,
+  HandCoins,
+  ClipboardCheck,
+  Bike,
+  KeyRound,
+  Utensils,
+  Hourglass,
+  Gift,
+  CalendarDays,
+  Tags,
+  Undo2,
+  Factory,
+  PackageCheck,
+  WalletCards,
+  RotateCcw,
+  Recycle,
+  Pill,
+  HardHat,
+  Repeat,
+  Thermometer,
+  Crown,
+  BadgePercent,
+  Bookmark,
+  ShieldAlert,
+  Wheat,
+  PartyPopper,
+  RefreshCcw,
+  ScrollText,
+  Wine,
+  FlaskConical,
+} from 'lucide-react'
 import type { NavViewId } from '../navigation'
+import { cn } from '../ui/cn'
 
-const cls = 'h-[18px] w-[18px] shrink-0'
-
-function IconCaisse() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 6h16v4H4V6zm0 6h10v8H4v-8zm12 0h4v8h-4v-8z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
+const MAP: Record<NavViewId, LucideIcon> = {
+  dash: LayoutDashboard,
+  caisse: Wallet,
+  catalogue: Package,
+  stocks: Warehouse,
+  comptabilite: Calculator,
+  rh: Briefcase,
+  crm: ContactRound,
+  kitchen: ChefHat,
+  ticketsFactures: Receipt,
+  tables: UtensilsCrossed,
+  promotions: Percent,
+  loyalty: Award,
+  onlineOrders: ShoppingBag,
+  journal: BookOpen,
+  personnel: Users,
+  pointage: CalendarClock,
+  analytique: PieChart,
+  integrations: Cable,
+  parametres: SlidersHorizontal,
+  network: Store,
+  achats: Truck,
+  devis: FileText,
+  sav: Wrench,
+  credits: HandCoins,
+  inventairePhysique: ClipboardCheck,
+  peremptions: Hourglass,
+  livraisons: Bike,
+  location: KeyRound,
+  carte: Utensils,
+  cadeaux: Gift,
+  rdv: CalendarDays,
+  tarifs: Tags,
+  retoursFournisseur: Undo2,
+  production: Factory,
+  bl: PackageCheck,
+  depenses: WalletCards,
+  retoursClient: RotateCcw,
+  consignes: Recycle,
+  ordonnances: Pill,
+  chantiers: HardHat,
+  abonnements: Repeat,
+  haccp: Thermometer,
+  vip: Crown,
+  commissions: BadgePercent,
+  misesDeCote: Bookmark,
+  pertes: ShieldAlert,
+  allergenes: Wheat,
+  evenements: PartyPopper,
+  reprises: RefreshCcw,
+  protocoles: ScrollText,
+  cave: Wine,
+  magistrales: FlaskConical,
 }
 
-function IconChart() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 19V5M9 19V9M14 19v-6M19 19V12"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function IconGrid() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"
-        stroke="currentColor"
-        strokeWidth="1.35"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function IconPackage() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3l8 4v10l-8 4-8-4V7l8-4z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 12l8-4M12 12v9M12 12L4 8"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function IconLedger() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect
-        x="4"
-        y="4"
-        width="16"
-        height="16"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M8 9h8M8 12h8M8 15h5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function IconTable() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 9h16M6 9v9m12-9v9M3 18h18"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function IconTag() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M11 4H6a2 2 0 00-2 2v5l8 8 8-8-8-8z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" />
-    </svg>
-  )
-}
-
-function IconStar() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 4l2.3 4.7 5.2.8-3.7 3.7.9 5.2L12 16l-4.7 2.4.9-5.2-3.7-3.7 5.2-.8L12 4z"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function IconLockClose() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect
-        x="5"
-        y="11"
-        width="14"
-        height="10"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M8 11V8a4 4 0 118 0v3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function IconUsers() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M4 19v-1a5 5 0 015-5h0a5 5 0 015 5v1"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M17 11h2M19 11v8"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function IconMail() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect
-        x="3.5"
-        y="6.5"
-        width="17"
-        height="11"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M5 8l7 5 7-5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function IconFile() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M7 3h7l4 4v14H7V3z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M14 3v4h4M10 12h5M10 15h5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function IconPuzzle() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 8h4v4H4V8zm6-4h4v4h-4V4zm0 10h4v4h-4v-4zm6-6h4v4h-4V8z"
-        stroke="currentColor"
-        strokeWidth="1.35"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function IconBuilding() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 20V10l6-3v13M10 20V7l6-3v16M4 10l6 3 6-3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function IconClipboardCheck() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M9 4h6l1 2h3v14H5V6h3l1-2z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M9 12l2 2 4-4"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function IconTimer() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="13" r="7" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M12 10v3.5l2.5 1.5M9 3h6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function IconTrending() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 16l6-6 4 4 6-8"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M15 6h4v4"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function IconSettings() {
-  return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75" />
-      <path
-        d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-const MAP: Record<NavViewId, ReactNode> = {
-  caisse: <IconCaisse />,
-  dash: <IconChart />,
-  catalogue: <IconGrid />,
-  stocks: <IconPackage />,
-  comptabilite: <IconLedger />,
-  rh: <IconUsers />,
-  crm: <IconMail />,
-  kitchen: <IconFile />,
-  ticketsFactures: <IconLedger />,
-  tables: <IconTable />,
-  promotions: <IconTag />,
-  loyalty: <IconStar />,
-  onlineOrders: <IconClipboardCheck />,
-  journal: <IconLockClose />,
-  personnel: <IconUsers />,
-  pointage: <IconTimer />,
-  analytique: <IconTrending />,
-  integrations: <IconPuzzle />,
-  parametres: <IconSettings />,
-  network: <IconBuilding />,
-  subscription: <IconLedger />,
-}
-
-export function NavIcon({ id }: { id: NavViewId }) {
-  return MAP[id]
+export function NavIcon({
+  id,
+  className,
+}: {
+  id: NavViewId
+  className?: string
+}) {
+  const Icon = MAP[id]
+  return <Icon className={cn('h-7 w-7 shrink-0', className)} strokeWidth={1.75} />
 }

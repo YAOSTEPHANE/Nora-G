@@ -1,5 +1,49 @@
-import type { ReactNode } from 'react'
+'use client'
+
+import { useCallback, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from './cn'
+
+type Side = 'top' | 'right' | 'bottom' | 'left'
+
+type TipPos = {
+  top: number
+  left: number
+  transform: string
+}
+
+function positionFor(side: Side, rect: DOMRect): TipPos {
+  switch (side) {
+    case 'right':
+      return {
+        top: rect.top + rect.height / 2,
+        left: rect.right + 8,
+        transform: 'translateY(-50%)',
+      }
+    case 'left':
+      return {
+        top: rect.top + rect.height / 2,
+        left: rect.left - 8,
+        transform: 'translate(-100%, -50%)',
+      }
+    case 'bottom':
+      return {
+        top: rect.bottom + 8,
+        left: rect.left + rect.width / 2,
+        transform: 'translateX(-50%)',
+      }
+    case 'top':
+      return {
+        top: rect.top - 8,
+        left: rect.left + rect.width / 2,
+        transform: 'translate(-50%, -100%)',
+      }
+    default: {
+      const _exhaustive: never = side
+      return _exhaustive
+    }
+  }
+}
 
 export function Tooltip({
   content,
@@ -9,29 +53,47 @@ export function Tooltip({
 }: {
   content: ReactNode
   children: ReactNode
-  side?: 'top' | 'right' | 'bottom' | 'left'
+  side?: Side
   className?: string
 }) {
-  const pos =
-    side === 'top'
-      ? 'bottom-full left-1/2 -translate-x-1/2 mb-1.5'
-      : side === 'bottom'
-        ? 'top-full left-1/2 -translate-x-1/2 mt-1.5'
-        : side === 'left'
-          ? 'right-full top-1/2 -translate-y-1/2 mr-1.5'
-          : 'left-full top-1/2 -translate-y-1/2 ml-1.5'
+  const [pos, setPos] = useState<TipPos | null>(null)
+
+  const show = useCallback(
+    (el: HTMLElement) => {
+      setPos(positionFor(side, el.getBoundingClientRect()))
+    },
+    [side],
+  )
+
+  const hide = useCallback(() => setPos(null), [])
+
   return (
-    <span className={cn('group/tt relative inline-flex', className)}>
+    <span
+      className={cn('relative inline-flex', className)}
+      onMouseEnter={(e) => show(e.currentTarget)}
+      onMouseLeave={hide}
+      onFocus={(e) => show(e.currentTarget)}
+      onBlur={hide}
+    >
       {children}
-      <span
-        className={cn(
-          'pointer-events-none absolute z-50 whitespace-nowrap rounded-md bg-zinc-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-opacity duration-150 group-hover/tt:opacity-100',
-          pos,
-        )}
-        role="tooltip"
-      >
-        {content}
-      </span>
+      {pos && typeof document !== 'undefined'
+        ? createPortal(
+            <span
+              role="tooltip"
+              style={{
+                position: 'fixed',
+                top: pos.top,
+                left: pos.left,
+                transform: pos.transform,
+                zIndex: 9999,
+              }}
+              className="pointer-events-none whitespace-nowrap rounded-md bg-zinc-900 px-2 py-1 text-[11px] font-medium text-white shadow-md"
+            >
+              {content}
+            </span>,
+            document.body,
+          )
+        : null}
     </span>
   )
 }

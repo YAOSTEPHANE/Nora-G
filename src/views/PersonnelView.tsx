@@ -14,7 +14,6 @@ import {
   updateStaffProfile,
 } from '../auth/profiles'
 import type { StaffProfile, UserRole } from '../auth/types'
-import { useSubscription } from '../context/SubscriptionContext'
 import { db } from '../db/db'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
@@ -45,24 +44,23 @@ type PermRow = {
 
 const PERMISSIONS: PermRow[] = [
   { label: 'Caisse (panier, espèces, carte, mobile money)', caissier: true, gerant: true, admin: true },
-  { label: 'Catalogue — consultation', caissier: true, gerant: true, admin: true },
-  { label: 'Catalogue — création, archivage, TVA, image, import CSV', caissier: false, gerant: true, admin: true },
+  { label: 'Articles — consultation', caissier: true, gerant: true, admin: true },
+  { label: 'Articles — création, archivage, TVA, image, import CSV', caissier: false, gerant: true, admin: true },
   { label: 'Modification des prix (vente & revient)', caissier: false, gerant: true, admin: true },
-  { label: 'Multi-magasins — vue consolidée', caissier: true, gerant: true, admin: true },
-  { label: 'Multi-magasins — transferts de stock', caissier: false, gerant: true, admin: true },
-  { label: 'Multi-magasins — création de magasins', caissier: false, gerant: false, admin: true },
-  { label: 'Rapport journalier & réimpression des reçus', caissier: true, gerant: true, admin: true },
-  { label: 'Commandes en ligne — consultation, export & reçu', caissier: true, gerant: true, admin: true },
-  { label: 'Commandes en ligne — validation / rejet', caissier: false, gerant: true, admin: true },
+  { label: 'Magasins — vue consolidée', caissier: true, gerant: true, admin: true },
+  { label: 'Magasins — transferts de stock', caissier: false, gerant: true, admin: true },
+  { label: 'Magasins — création de sites', caissier: false, gerant: false, admin: true },
+  { label: 'Journal & réimpression des reçus', caissier: true, gerant: true, admin: true },
+  { label: 'Commandes — consultation, export & reçu', caissier: true, gerant: true, admin: true },
+  { label: 'Commandes — validation / rejet', caissier: false, gerant: true, admin: true },
   { label: 'Clôture journalière & fond de caisse', caissier: false, gerant: true, admin: true },
   { label: 'Remboursements vente (audit)', caissier: false, gerant: true, admin: true },
   { label: 'Annulation transaction (audit)', caissier: true, gerant: true, admin: true },
   { label: 'File cloud — pousser', caissier: true, gerant: true, admin: true },
-  { label: 'Stocks & inventaire rapide', caissier: false, gerant: true, admin: true },
-  { label: 'Tableau de bord', caissier: false, gerant: true, admin: true },
-  { label: 'Analytique', caissier: false, gerant: true, admin: true },
-  { label: 'Personnel (matrice)', caissier: false, gerant: false, admin: true },
-  { label: 'Intégrations', caissier: false, gerant: false, admin: true },
+  { label: 'Inventaire rapide', caissier: false, gerant: true, admin: true },
+  { label: 'Stats', caissier: false, gerant: true, admin: true },
+  { label: 'Équipe (matrice)', caissier: false, gerant: false, admin: true },
+  { label: 'Connexions', caissier: false, gerant: false, admin: true },
 ]
 
 function PermCell({ ok }: { ok: boolean }) {
@@ -83,8 +81,7 @@ function PermCell({ ok }: { ok: boolean }) {
 
 export function PersonnelView({ currentProfileId }: Props) {
   const toast = useToast()
-  const { subscription } = useSubscription()
-  const maxStaff = subscription?.plan.maxStaff ?? 0
+  const maxStaff = 0
   const [profiles, setProfiles] = useState(() => listStaffProfiles())
   const [displayName, setDisplayName] = useState('')
   const [role, setRole] = useState<UserRole>('caissier')
@@ -284,10 +281,11 @@ export function PersonnelView({ currentProfileId }: Props) {
   }
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
       <PageHeader
+        icon={<IconShield />}
         eyebrow="Équipe"
-        title="Personnel & permissions"
+        title="Équipe"
         subtitle="Profils, rôles et matrice des droits"
       />
 
@@ -296,16 +294,10 @@ export function PersonnelView({ currentProfileId }: Props) {
         <Kpi label="Gérants actifs" value={String(totalByRole.gerant)} tone="violet" />
         <Kpi label="Administrateurs" value={String(totalByRole.admin)} tone="accent" />
         <Kpi
-          label="Quota plan"
-          value={maxStaff > 0 ? `${activeCount}/${maxStaff}` : String(activeCount)}
-          hint={
-            atStaffLimit
-              ? 'Limite atteinte'
-              : subscription?.plan.name
-                ? `Plan ${subscription.plan.name}`
-                : 'Utilisateurs actifs'
-          }
-          tone={atStaffLimit ? 'rose' : 'amber'}
+          label="Utilisateurs actifs"
+          value={String(activeCount)}
+          hint="Sans limite de quota"
+          tone="amber"
         />
       </div>
 
@@ -407,16 +399,8 @@ export function PersonnelView({ currentProfileId }: Props) {
           </h2>
           <p className="mt-0.5 text-[12px] text-zinc-500">
             Connexion par PIN ou mot de passe (même champ).
-            {maxStaff > 0
-              ? ` Quota plan : ${activeCount}/${maxStaff} actifs.`
-              : ''}
+            Aucune limite d’utilisateurs.
           </p>
-          {atStaffLimit ? (
-            <p className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">
-              Limite d’utilisateurs atteinte. Désactivez un compte ou passez à un
-              plan supérieur (Abonnement).
-            </p>
-          ) : null}
           <form
             onSubmit={handleCreate}
             className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-5"

@@ -483,10 +483,11 @@ export function PointageView({
     : false
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
       <PageHeader
+        icon={<IconLogin />}
         eyebrow="Équipe"
-        title="Pointage"
+        title="Présences"
         subtitle="Arrivées, départs, présence équipe et synthèse des heures"
         actions={
           sortedTableDesc.length > 0 ? (

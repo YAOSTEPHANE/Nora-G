@@ -110,7 +110,7 @@ export function IntegrationsView() {
     getDeviceConnectivityDemo(),
   )
 
-  const webhookUrl = useMemo(() => apiUrl('/webhooks/caisseci'), [])
+  const webhookUrl = useMemo(() => apiUrl('/webhooks/nora'), [])
 
   const copyKey = useCallback(async () => {
     try {
@@ -132,10 +132,11 @@ export function IntegrationsView() {
   )
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
       <PageHeader
+        icon={<IconIntegrations />}
         eyebrow="Écosystème"
-        title="Intégrations"
+        title="Connexions"
         subtitle="Paiements boutique, modules métiers, API et application mobile"
       />
 
@@ -204,7 +205,7 @@ export function IntegrationsView() {
                 <div>
                   <Badge tone="info">E-commerce</Badge>
                   <h3 className="mt-2 text-[15px] font-semibold text-zinc-900">
-                    Boutique en ligne
+                    Commandes web
                   </h3>
                 </div>
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
@@ -338,7 +339,7 @@ export function IntegrationsView() {
                 </Select>
               </Field>
               <p className="text-[11px] text-zinc-500">
-                Les plateformes actives alimentent le module « Commandes en ligne » avec import distant et suivi livraison.
+                Les plateformes actives alimentent le module « Commandes » avec import distant et suivi livraison.
               </p>
             </CardContent>
           </Card>
@@ -501,7 +502,7 @@ export function IntegrationsView() {
                 POST {webhookUrl}
               </code>
               <code className="ui-card-flat mt-2 block break-all rounded-lg px-3 py-2 font-mono-nums text-[12px] text-zinc-700">
-                POST {webhookUrl.replace('/caisseci', '/orders')} (x-platform + x-webhook-token)
+                POST {webhookUrl.replace('/nora', '/orders')} (x-platform + x-webhook-token)
               </code>
             </CardContent>
           </Card>
@@ -559,7 +560,7 @@ export function IntegrationsView() {
                   Schéma d’URL universel
                 </p>
                 <code className="mt-1 block font-mono-nums text-[12px] text-emerald-800">
-                  caisseci-manager://boutique/SESSION?token=…
+                  nora-manager://boutique/SESSION?token=…
                 </code>
               </div>
             </CardContent>
@@ -579,7 +580,7 @@ export function IntegrationsView() {
                   'Notifications push rupture & seuils',
                   'Validation workflow remises (PIN gérant)',
                   'État file synchronisation cloud & retry manuel',
-                  'Authentification alignée sur les profils Caisse CI',
+                  'Authentification alignée sur les profils Nora',
                 ].map((it) => (
                   <li key={it} className="flex items-start gap-2">
                     <IconCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />

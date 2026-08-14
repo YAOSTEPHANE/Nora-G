@@ -1,10 +1,16 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useActiveStore } from '../context/ActiveStoreContext'
-import { addProductCategoryLabel, db } from '../db/db'
+import {
+  addProductCategoryLabel,
+  db,
+  deleteProductCategoryIfUnused,
+  renameProductCategoryLabel,
+} from '../db/db'
 import type { CategoryTab } from '../components/Sidebar'
 import type { Product, ProductWithStock } from '../db/types'
 import { EditProductModal } from '../components/EditProductModal'
+import { AddProductModal } from '../components/AddProductModal'
 import { formatFCFA } from '../lib/money'
 import { ProductImage } from '../components/ProductImage'
 import { ProductDetailModal } from '../components/ProductDetailModal'
@@ -14,14 +20,24 @@ import {
   exportProductsCsv,
   parseProductsCsv,
 } from '../lib/csvProducts'
+import {
+  APP_SETTINGS_CHANGED_EVENT,
+  getAppSettings,
+} from '../lib/appSettings'
+import type { BusinessDomain } from '../lib/businessDomain'
+import {
+  categoryTabsForDomain,
+  productBelongsToDomain,
+} from '../lib/domainCatalog'
 import { productIsActive } from '../lib/productFilters'
 import type { AuditActor } from '../lib/auditLog'
 import { appendAuditEvent } from '../lib/auditLog'
 import { deleteProductPermanently } from '../lib/deleteProduct'
+import { enqueueProductSync, enqueueStockSync } from '../lib/sync'
 import { assertBarcodeAvailable } from '../lib/productBarcode'
 import { storeStockRowId } from '../lib/storeStockId'
 import { Badge } from '../ui/Badge'
-import { Button, IconButton } from '../ui/Button'
+import { Button } from '../ui/Button'
 import { Card, CardContent } from '../ui/Card'
 import { cn } from '../ui/cn'
 import { EmptyState } from '../ui/EmptyState'
@@ -55,7 +71,7 @@ type Props = {
   canEditPrices: boolean
   density: 'compact' | 'confort'
   auditActor: AuditActor
-  onAddClick: () => void
+  onSaveNewProduct: (product: Product, initialStock: number) => Promise<void>
 }
 
 type ViewTab = 'articles' | 'categories'
@@ -95,10 +111,18 @@ export function CatalogueView({
   canEditPrices,
   density,
   auditActor,
-  onAddClick,
+  onSaveNewProduct,
 }: Props) {
   const { activeStoreId, activeStore } = useActiveStore()
   const toast = useToast()
+  const [businessDomain, setBusinessDomain] = useState<BusinessDomain>(
+    () => getAppSettings().businessDomain,
+  )
+  useEffect(() => {
+    const sync = () => setBusinessDomain(getAppSettings().businessDomain)
+    window.addEventListener(APP_SETTINGS_CHANGED_EVENT, sync)
+    return () => window.removeEventListener(APP_SETTINGS_CHANGED_EVENT, sync)
+  }, [])
   const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
   const productCategoryRows =
     useLiveQuery(
@@ -107,8 +131,12 @@ export function CatalogueView({
       [],
     ) ?? []
   const categoryTabs = useMemo<CategoryTab[]>(
-    () => ['Tous', ...productCategoryRows.map((r) => r.name)],
-    [productCategoryRows],
+    () =>
+      categoryTabsForDomain(
+        businessDomain,
+        productCategoryRows.map((r) => r.name),
+      ),
+    [businessDomain, productCategoryRows],
   )
   const stockRows =
     useLiveQuery(
@@ -118,8 +146,10 @@ export function CatalogueView({
     ) ?? []
   const rowsWithStock = useMemo((): ProductWithStock[] => {
     const m = new Map(stockRows.map((r) => [r.productId, r.stock]))
-    return products.map((p) => ({ ...p, stock: m.get(p.id) ?? 0 }))
-  }, [products, stockRows])
+    return products
+      .filter((p) => productBelongsToDomain(p, businessDomain))
+      .map((p) => ({ ...p, stock: m.get(p.id) ?? 0 }))
+  }, [products, stockRows, businessDomain])
 
   const [viewTab, setViewTab] = useState<ViewTab>('articles')
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('grid')
@@ -128,6 +158,7 @@ export function CatalogueView({
   const [q, setQ] = useState('')
   const [cat, setCat] = useState<CategoryTab>('Tous')
   const [editing, setEditing] = useState<Product | null>(null)
+  const [adding, setAdding] = useState(false)
   const [detailProduct, setDetailProduct] =
     useState<ProductWithStock | null>(null)
   const [showArchived, setShowArchived] = useState(false)
@@ -137,9 +168,7 @@ export function CatalogueView({
   const [pendingArchiveUntil, setPendingArchiveUntil] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const gridCols = density === 'compact'
-    ? 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-    : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+  const gridCols = 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
 
   useEffect(() => {
     if (categoryTabs.length === 0) return
@@ -171,12 +200,25 @@ export function CatalogueView({
   }, [products, activeProducts])
 
   const categoryStats = useMemo(() => {
-    return productCategoryRows.map((row) => {
+    const seen = new Set<string>()
+    const out: {
+      id: string
+      name: string
+      total: number
+      active: number
+      rupture: number
+      alerte: number
+    }[] = []
+    for (const row of productCategoryRows) {
+      const key = row.name.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
       const items = rowsWithStock.filter(
         (p) =>
           p.category === row.name && (showArchived ? true : productIsActive(p)),
       )
-      return {
+      out.push({
+        id: row.id,
         name: row.name,
         total: items.length,
         active: items.filter((p) => !p.archived).length,
@@ -187,8 +229,9 @@ export function CatalogueView({
             p.stock > 0 &&
             p.stock <= p.lowStockThreshold,
         ).length,
-      }
-    })
+      })
+    }
+    return out
   }, [productCategoryRows, rowsWithStock, showArchived])
 
   const handleAddCategory = useCallback(async () => {
@@ -207,6 +250,43 @@ export function CatalogueView({
       setCategoryAddBusy(false)
     }
   }, [newCategoryName, toast])
+
+  const handleRenameCategory = useCallback(
+    async (categoryId: string, currentName: string) => {
+      const next = window.prompt('Nouveau nom de catégorie', currentName)
+      if (next == null || next.trim() === currentName) return
+      try {
+        const name = await renameProductCategoryLabel(categoryId, next)
+        toast.success('Catégorie renommée', name)
+      } catch (e) {
+        toast.error(
+          'Renommage impossible',
+          e instanceof Error ? e.message : String(e),
+        )
+      }
+    },
+    [toast],
+  )
+
+  const handleDeleteCategory = useCallback(
+    async (categoryId: string, currentName: string) => {
+      const ok = window.confirm(
+        `Supprimer la catégorie « ${currentName} » ?\nElle ne doit plus contenir d’articles.`,
+      )
+      if (!ok) return
+      try {
+        await deleteProductCategoryIfUnused(categoryId)
+        if (cat === currentName) setCat('Tous')
+        toast.success('Catégorie supprimée', currentName)
+      } catch (e) {
+        toast.error(
+          'Suppression impossible',
+          e instanceof Error ? e.message : String(e),
+        )
+      }
+    },
+    [cat, toast],
+  )
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase()
@@ -262,6 +342,15 @@ export function CatalogueView({
         },
       })
     }
+    await enqueueProductSync({ action: 'upsert', productId: p.id, product: p })
+    if (stockChanged || thresholdChanged) {
+      await enqueueStockSync({
+        productId: p.id,
+        stock: stockAtStore,
+        lowStockThreshold: p.lowStockThreshold,
+        storeId: activeStoreId,
+      })
+    }
     toast.success('Article enregistré', p.name)
   }
 
@@ -277,6 +366,10 @@ export function CatalogueView({
       return
     }
     await db.products.update(p.id, { archived: true })
+    const next = await db.products.get(p.id)
+    if (next) {
+      await enqueueProductSync({ action: 'upsert', productId: next.id, product: next })
+    }
     setPendingArchiveId(null)
     setPendingArchiveUntil(0)
     toast.info('Article archivé', p.name)
@@ -284,6 +377,10 @@ export function CatalogueView({
 
   const handleRestore = async (p: ProductWithStock) => {
     await db.products.update(p.id, { archived: false })
+    const next = await db.products.get(p.id)
+    if (next) {
+      await enqueueProductSync({ action: 'upsert', productId: next.id, product: next })
+    }
     toast.success('Article réactivé', p.name)
   }
 
@@ -347,7 +444,7 @@ export function CatalogueView({
       return
     }
     const date = new Date().toISOString().slice(0, 10)
-    exportProductsCsv(filtered, `caisseci-catalogue-${date}.csv`)
+    exportProductsCsv(filtered, `nora-catalogue-${date}.csv`)
     toast.success('Export CSV', `${filtered.length} article(s) exporté(s).`)
   }, [filtered, toast])
 
@@ -356,60 +453,69 @@ export function CatalogueView({
     setViewTab('articles')
   }, [])
 
-  const renderProductActions = (p: ProductWithStock, compact = false) => {
+  const renderProductActions = (
+    p: ProductWithStock,
+    compact = false,
+    overlay = false,
+  ) => {
     if (compact) {
       return (
-        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-1.5">
-          <IconButton
-            size="lg"
-            variant="ghost"
+        <div
+          className={cn(
+            'catalogue-card-actions',
+            overlay && 'catalogue-card-actions--overlay',
+          )}
+        >
+          <button
+            type="button"
+            className="catalogue-card-icon"
             onClick={() => setDetailProduct(p)}
             aria-label="Voir les détails"
             title="Détails"
           >
-            <IconEye />
-          </IconButton>
+            <IconEye size={16} strokeWidth={2.5} />
+          </button>
           {canManageCatalog ? (
             <>
-              <IconButton
-                size="lg"
-                variant="secondary"
+              <button
+                type="button"
+                className="catalogue-card-icon"
                 onClick={() => setEditing(p)}
                 aria-label="Modifier"
                 title="Modifier"
               >
-                <IconEdit />
-              </IconButton>
+                <IconEdit size={16} strokeWidth={2.5} />
+              </button>
               {p.archived ? (
-                <IconButton
-                  size="lg"
-                  variant="ghost"
+                <button
+                  type="button"
+                  className="catalogue-card-icon"
                   onClick={() => void handleRestore(p)}
                   aria-label="Réactiver"
                   title="Réactiver"
                 >
-                  <IconRefund />
-                </IconButton>
+                  <IconRefund size={16} strokeWidth={2.5} />
+                </button>
               ) : (
-                <IconButton
-                  size="lg"
-                  variant="ghost"
+                <button
+                  type="button"
+                  className="catalogue-card-icon"
                   onClick={() => void handleArchive(p)}
                   aria-label="Archiver"
                   title="Archiver"
                 >
-                  <IconArchive />
-                </IconButton>
+                  <IconArchive size={16} strokeWidth={2.5} />
+                </button>
               )}
-              <IconButton
-                size="lg"
-                variant="danger"
+              <button
+                type="button"
+                className="catalogue-card-icon catalogue-card-icon--danger"
                 onClick={() => void handleDelete(p)}
                 aria-label="Supprimer"
                 title="Supprimer"
               >
-                <IconTrash />
-              </IconButton>
+                <IconTrash size={16} strokeWidth={2.5} />
+              </button>
             </>
           ) : null}
         </div>
@@ -483,7 +589,14 @@ export function CatalogueView({
   }
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
+      {adding ? (
+        <AddProductModal
+          activeStoreLabel={activeStore?.name ?? 'Magasin'}
+          onClose={() => setAdding(false)}
+          onSave={onSaveNewProduct}
+        />
+      ) : null}
       {editing ? (
         <EditProductModal
           product={editing}
@@ -499,8 +612,9 @@ export function CatalogueView({
       ) : null}
 
       <PageHeader
-        eyebrow="Catalogue"
-        title="Articles & catégories"
+        icon={<IconCatalogue />}
+        eyebrow="Articles"
+        title="Articles"
         subtitle={`Prix, codes-barres, TVA et stocks — ${activeStore?.name ?? 'magasin actif'}`}
         actions={
           <>
@@ -550,7 +664,7 @@ export function CatalogueView({
                 size="sm"
                 variant="accent"
                 iconLeft={<IconPlus />}
-                onClick={onAddClick}
+                onClick={() => setAdding(true)}
               >
                 Nouvel article
               </Button>
@@ -684,7 +798,7 @@ export function CatalogueView({
                     className={cn(
                       'rounded-full border px-3 py-1 text-[11px] font-semibold transition',
                       on
-                        ? 'border-[rgba(184,146,46,0.45)] bg-[var(--color-caisse-gold-soft)] text-[var(--color-caisse-gold)]'
+                        ? 'border-[rgba(0,51,170,0.45)] bg-[var(--color-caisse-gold-soft)] text-[var(--color-caisse-gold)]'
                         : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300',
                     )}
                   >
@@ -703,44 +817,65 @@ export function CatalogueView({
             />
           ) : layoutMode === 'grid' ? (
             <ul className={cn('grid gap-3', gridCols)}>
-              {filtered.map((p) => (
-                <li
-                  key={p.id}
-                  className={cn(
-                    'caisse-product-card flex flex-col p-3',
-                    p.archived && 'opacity-70',
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="group flex flex-1 flex-col text-left"
-                    onClick={() => setDetailProduct(p)}
-                  >
-                    <ProductImage
-                      product={p}
-                      className="mx-auto h-20 w-20 rounded-xl border border-[rgba(184,146,46,0.16)] object-cover"
-                    />
-                    <p className="mt-2 line-clamp-2 text-[12px] font-semibold text-zinc-900 group-hover:text-[var(--color-caisse-gold)]">
-                      {p.name}
-                    </p>
-                    <p className="mt-0.5 text-[10px] text-zinc-500">{p.category}</p>
-                    <p className="mt-1 font-mono-nums text-[14px] font-bold text-[var(--color-caisse-gold)]">
-                      {formatFCFA(p.priceTTC)}
-                    </p>
-                  </button>
-                  <div className="mt-2 flex flex-wrap items-center gap-1">
-                    {renderStockBadge(p)}
-                    {p.archived ? (
-                      <Badge tone="neutral">Archivé</Badge>
-                    ) : (
-                      <Badge tone="success">Actif</Badge>
+              {filtered.map((p) => {
+                const state = stockState(p)
+                return (
+                  <li
+                    key={p.id}
+                    className={cn(
+                      'catalogue-product',
+                      p.archived && 'is-archived',
                     )}
-                  </div>
-                  <div className="relative z-[1] mt-2 min-w-0 border-t border-[rgba(184,146,46,0.1)] pt-2">
-                    {renderProductActions(p, true)}
-                  </div>
-                </li>
-              ))}
+                  >
+                    <div className="catalogue-product-visual">
+                      <button
+                        type="button"
+                        className="catalogue-product-hit"
+                        onClick={() => setDetailProduct(p)}
+                      >
+                        <div className="catalogue-product-media">
+                          <ProductImage
+                            product={p}
+                            className="h-full w-full object-cover"
+                          />
+                          <span
+                            className={cn(
+                              'catalogue-product-stock',
+                              state === 'rupture' && 'is-out',
+                              state === 'alerte' && 'is-low',
+                            )}
+                          >
+                            {state === 'rupture'
+                              ? 'Rupture'
+                              : state === 'alerte'
+                                ? `Alerte · ${p.stock}`
+                                : `Stock ${p.stock}`}
+                          </span>
+                          {p.archived ? (
+                            <span className="catalogue-product-flag">Archivé</span>
+                          ) : null}
+                        </div>
+                      </button>
+                      {renderProductActions(p, true, true)}
+                    </div>
+                    <button
+                      type="button"
+                      className="catalogue-product-hit"
+                      onClick={() => setDetailProduct(p)}
+                    >
+                      <div className="catalogue-product-body">
+                        {p.category ? (
+                          <p className="catalogue-product-cat">{p.category}</p>
+                        ) : null}
+                        <p className="catalogue-product-name">{p.name}</p>
+                        <p className="catalogue-product-price">
+                          {formatFCFA(p.priceTTC)}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           ) : (
             <>
@@ -889,7 +1024,7 @@ export function CatalogueView({
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {categoryStats.map((c) => (
-                <li key={c.name}>
+                <li key={c.id}>
                   <button
                     type="button"
                     onClick={() => openCategory(c.name)}
@@ -912,6 +1047,24 @@ export function CatalogueView({
                       Voir les articles →
                     </span>
                   </button>
+                  {canManageCatalog ? (
+                    <div className="mt-1 flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void handleRenameCategory(c.id, c.name)}
+                      >
+                        Renommer
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void handleDeleteCategory(c.id, c.name)}
+                      >
+                        Supprimer
+                      </Button>
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>

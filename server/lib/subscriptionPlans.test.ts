@@ -5,37 +5,16 @@ import { isSubscriptionUsable } from './subscriptionPlans.js'
 const NOW = new Date('2026-07-16T12:00:00.000Z')
 
 describe('isSubscriptionUsable', () => {
-  it('refuse un essai expiré', () => {
+  it('accepte toujours (abonnements retirés)', () => {
     expect(
       isSubscriptionUsable(
-        'trialing',
+        'expired',
+        new Date('2020-01-01T00:00:00.000Z'),
         null,
-        new Date('2026-07-15T12:00:00.000Z'),
-        NOW,
-      ),
-    ).toBe(false)
-  })
-
-  it('accepte un essai encore valide', () => {
-    expect(
-      isSubscriptionUsable(
-        'trialing',
-        null,
-        new Date('2026-07-17T12:00:00.000Z'),
         NOW,
       ),
     ).toBe(true)
-  })
-
-  it('refuse un abonnement actif dont la période est terminée', () => {
-    expect(
-      isSubscriptionUsable(
-        'active',
-        new Date('2026-07-15T12:00:00.000Z'),
-        null,
-        NOW,
-      ),
-    ).toBe(false)
+    expect(isSubscriptionUsable('trialing', null, null, NOW)).toBe(true)
   })
 })
 

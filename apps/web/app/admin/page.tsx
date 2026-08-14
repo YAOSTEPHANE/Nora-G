@@ -1,7 +1,5 @@
-'use client'
-
-import { AdminScreen } from '../../src/screens/AdminScreen'
+import { redirect } from 'next/navigation'
 
 export default function AdminPage() {
-  return <AdminScreen />
+  redirect('/')
 }

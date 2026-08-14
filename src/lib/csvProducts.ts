@@ -9,6 +9,7 @@ import {
   normalizeProductHighlights,
 } from './productDescription'
 import { storeStockRowId } from './storeStockId'
+import { enqueueProductSync } from './sync'
 
 export const CSV_TEMPLATE = `nom;prix_ttc;prix_revient_ttc;code_barres;categorie;stock;seuil;tva_pct;archive;image_url;description;points_forts
 Exemple boisson;1000;600;1234567890123;Boissons;0;5;18;;;Boisson rafraîchissante maison;Fait maison|Servi glacé
@@ -351,6 +352,11 @@ export async function applyProductsCsvImport(
           else delete merged.highlights
         }
         await db.products.put(merged)
+        await enqueueProductSync({
+          action: 'upsert',
+          productId: merged.id,
+          product: merged,
+        })
         await db.storeStocks.put({
           id: storeStockRowId(DEFAULT_STORE_ID, merged.id),
           storeId: DEFAULT_STORE_ID,
@@ -360,6 +366,11 @@ export async function applyProductsCsvImport(
         updated++
       } else {
         await db.products.add(p)
+        await enqueueProductSync({
+          action: 'upsert',
+          productId: p.id,
+          product: p,
+        })
         await db.storeStocks.put({
           id: storeStockRowId(DEFAULT_STORE_ID, p.id),
           storeId: DEFAULT_STORE_ID,
@@ -381,7 +392,7 @@ export function downloadCsvTemplate(): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'caisseci-import-produits-modele.csv'
+  a.download = 'nora-import-produits-modele.csv'
   a.click()
   URL.revokeObjectURL(url)
 }

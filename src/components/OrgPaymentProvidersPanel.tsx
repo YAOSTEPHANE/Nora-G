@@ -92,7 +92,7 @@ export function OrgPaymentProvidersPanel({ licenseKey }: Props) {
       setClearCinetpaySiteId(false)
       toast.success(
         'Paiements enregistrés',
-        'Ces clés sont propres à votre abonnement (boutique).',
+        'Ces clés sont propres à votre boutique.',
       )
     } catch (error) {
       toast.error(
@@ -112,7 +112,7 @@ export function OrgPaymentProvidersPanel({ licenseKey }: Props) {
             Wave & Orange Money (votre boutique)
           </h3>
           <p className="mt-1 text-[12px] text-zinc-500">
-            Chaque abonnement a ses propres clés. Les clients paient sur{' '}
+            Chaque magasin a ses propres clés. Les clients paient sur{' '}
             <strong>votre</strong> compte Wave / CinetPay (Orange Money), pas
             celui de la plateforme.
           </p>

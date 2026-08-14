@@ -13,6 +13,8 @@ type Props = {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   /** Désactive la fermeture sur clic backdrop. */
   staticBackdrop?: boolean
+  /** `page` : s’ouvre dans la vue courante, sans overlay. */
+  variant?: 'overlay' | 'page'
 }
 
 const SIZE = {
@@ -31,22 +33,76 @@ export function Modal({
   footer,
   size = 'md',
   staticBackdrop = false,
+  variant = 'overlay',
 }: Props) {
+  const isPage = variant === 'page'
+
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', handler)
+    if (isPage) {
+      return () => window.removeEventListener('keydown', handler)
+    }
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
       window.removeEventListener('keydown', handler)
       document.body.style.overflow = prev
     }
-  }, [open, onClose])
+  }, [open, onClose, isPage])
 
   if (!open) return null
+
+  const chrome = (
+    <>
+      {(title || subtitle) ? (
+        <div className="flex items-start justify-between gap-3 border-b border-[rgba(0,51,170,0.1)] bg-[linear-gradient(180deg,#f7f8fc,transparent)] px-4 py-3.5 sm:px-6 sm:py-5">
+          <div className="min-w-0">
+            {title ? <h2 className="ui-h2 truncate text-base sm:text-lg">{title}</h2> : null}
+            {subtitle ? (
+              <p className="ui-muted mt-0.5 text-[13px] sm:text-sm">{subtitle}</p>
+            ) : null}
+          </div>
+          <IconButton size="sm" onClick={onClose} aria-label="Fermer">
+            <IconClose />
+          </IconButton>
+        </div>
+      ) : (
+        <div className="absolute right-3 top-3 z-10">
+          <IconButton size="sm" onClick={onClose} aria-label="Fermer">
+            <IconClose />
+          </IconButton>
+        </div>
+      )}
+      <div
+        className={cn(
+          'ui-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6',
+          isPage && 'overflow-visible',
+        )}
+      >
+        {children}
+      </div>
+      {footer ? (
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[rgba(0,51,170,0.1)] bg-[linear-gradient(180deg,transparent,rgba(232,238,250,0.65))] px-4 py-3.5 sm:px-6">
+          {footer}
+        </div>
+      ) : null}
+    </>
+  )
+
+  if (isPage) {
+    return (
+      <div
+        className="ui-form-page relative flex w-full flex-col overflow-hidden"
+        role="region"
+      >
+        {chrome}
+      </div>
+    )
+  }
 
   return (
     <div
@@ -62,37 +118,11 @@ export function Modal({
       />
       <div
         className={cn(
-          'relative z-10 flex max-h-[calc(100svh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[var(--shadow-overlay)] animate-ui-scale-in',
+          'relative z-10 flex max-h-[calc(100svh-2rem)] w-full flex-col overflow-hidden rounded-3xl border border-[rgba(0,51,170,0.12)] bg-[linear-gradient(180deg,#fbfcff,#ffffff)] shadow-[var(--shadow-overlay)] animate-ui-scale-in',
           SIZE[size],
         )}
       >
-        {(title || subtitle) ? (
-          <div className="flex items-start justify-between gap-3 border-b border-zinc-100 px-4 py-3 sm:px-6 sm:py-4">
-            <div className="min-w-0">
-              {title ? <h2 className="ui-h2 truncate text-base sm:text-lg">{title}</h2> : null}
-              {subtitle ? (
-                <p className="ui-muted mt-0.5 text-[13px] sm:text-sm">{subtitle}</p>
-              ) : null}
-            </div>
-            <IconButton size="sm" onClick={onClose} aria-label="Fermer">
-              <IconClose />
-            </IconButton>
-          </div>
-        ) : (
-          <div className="absolute right-3 top-3 z-10">
-            <IconButton size="sm" onClick={onClose} aria-label="Fermer">
-              <IconClose />
-            </IconButton>
-          </div>
-        )}
-        <div className="ui-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          {children}
-        </div>
-        {footer ? (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-zinc-100 bg-zinc-50/50 px-4 py-3 sm:px-6">
-            {footer}
-          </div>
-        ) : null}
+        {chrome}
       </div>
     </div>
   )

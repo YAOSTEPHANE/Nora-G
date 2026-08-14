@@ -23,6 +23,7 @@ export function salePaymentAmounts(s: Sale): {
   if (s.paymentMethod === 'cash') return { cash: t, card: 0, mobile: 0 }
   if (s.paymentMethod === 'card') return { cash: 0, card: t, mobile: 0 }
   if (s.paymentMethod === 'mobile') return { cash: 0, card: 0, mobile: t }
+  if (s.paymentMethod === 'credit') return { cash: 0, card: 0, mobile: 0 }
   if (s.paymentMethod === 'mixed') {
     return { cash: t, card: 0, mobile: 0 }
   }
@@ -40,6 +41,7 @@ export function paymentMethodShortLabel(m: PaymentMethod): string {
   if (m === 'cash') return 'Espèces'
   if (m === 'card') return 'Carte'
   if (m === 'mobile') return 'Mobile money'
+  if (m === 'credit') return 'Crédit client'
   return 'Paiement mixte'
 }
 
@@ -53,6 +55,9 @@ export function describeSalePayment(s: Sale): string {
     const op = saleMobileOperator(s)
     const opL = op ? MOBILE_OPERATOR_LABELS[op] : 'Mobile money'
     parts.push(`${opL} ${formatPart(amt.mobile)}`)
+  }
+  if (s.paymentMethod === 'credit') {
+    parts.push(`Crédit client ${formatPart(s.totalTTC)}`)
   }
   if (parts.length === 0) return paymentMethodShortLabel(s.paymentMethod)
   return parts.join(' · ')

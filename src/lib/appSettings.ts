@@ -1,14 +1,20 @@
 import type { ProductGridDensity } from '../components/ProductGrid'
 import { DEFAULT_VAT_RATE_PCT } from './money'
+import {
+  isBusinessDomain,
+  type BusinessDomain,
+} from './businessDomain'
 
-const STORAGE_KEY = 'caisseci-app-settings'
+const STORAGE_KEY = 'nora-app-settings'
 
-export const TABLE_AUTO_RELEASE_ENABLED_KEY = 'caisseci-tables-auto-release-enabled'
-export const TABLE_AUTO_RELEASE_MINUTES_KEY = 'caisseci-tables-auto-release-minutes'
+export const TABLE_AUTO_RELEASE_ENABLED_KEY = 'nora-tables-auto-release-enabled'
+export const TABLE_AUTO_RELEASE_MINUTES_KEY = 'nora-tables-auto-release-minutes'
 
-export const APP_SETTINGS_CHANGED_EVENT = 'caisseci-app-settings-changed'
+export const APP_SETTINGS_CHANGED_EVENT = 'nora-app-settings-changed'
 
 export type AppSettings = {
+  /** Domaine métier : détermine les modules et spécificités produit. */
+  businessDomain: BusinessDomain
   defaultVatRatePct: number
   productGridDensity: ProductGridDensity
   autoPrintReceiptAfterSale: boolean
@@ -24,6 +30,7 @@ export type AppSettings = {
 }
 
 const DEFAULTS: AppSettings = {
+  businessDomain: 'retail',
   defaultVatRatePct: DEFAULT_VAT_RATE_PCT,
   productGridDensity: 'compact',
   autoPrintReceiptAfterSale: true,
@@ -62,6 +69,9 @@ function normalizeSettings(raw: Partial<AppSettings>): AppSettings {
     raw.productGridDensity === 'confort' ? 'confort' : 'compact'
 
   return {
+    businessDomain: isBusinessDomain(raw.businessDomain)
+      ? raw.businessDomain
+      : DEFAULTS.businessDomain,
     defaultVatRatePct:
       Number.isFinite(vat) && vat >= 0 && vat <= 100
         ? vat

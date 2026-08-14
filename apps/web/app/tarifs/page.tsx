@@ -1,7 +1,5 @@
-'use client'
-
-import { MarketingScreen } from '../../src/screens/MarketingScreen'
+import { redirect } from 'next/navigation'
 
 export default function TarifsPage() {
-  return <MarketingScreen scrollToPricing />
+  redirect('/staff')
 }

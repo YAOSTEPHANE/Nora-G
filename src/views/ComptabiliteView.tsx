@@ -151,7 +151,7 @@ export function ComptabiliteView({ canManageCompta }: Props) {
 
   const exportAccountingCsv = useCallback(() => {
     const rows: string[][] = [
-      ['Export comptable Caisse CI'],
+      ['Export comptable Nora'],
       ['Période', `${fromYmd} -> ${toYmd}`],
       ['Magasin', storeFilter === 'all' ? 'Tous' : (stores.find((s) => s.id === storeFilter)?.name ?? storeFilter)],
       [],
@@ -202,10 +202,11 @@ export function ComptabiliteView({ canManageCompta }: Props) {
   }, [taxId, fiscalRegime, toast])
 
   return (
-    <div className="space-y-4 pb-6 sm:space-y-5">
+    <div className="module-page">
       <PageHeader
+        icon={<IconSpreadsheet />}
         eyebrow="Finance"
-        title="Comptabilité"
+        title="Compta"
         subtitle="Ventilation HT/TVA, synthèse des écritures et export comptable"
         actions={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">

@@ -6,11 +6,11 @@ import { useSiteBranding } from '../context/SiteBrandingContext'
 import { cn } from '../ui/cn'
 
 const SIZES = {
-  xs: 'h-10 w-10',
-  sm: 'h-12 w-12',
-  md: 'h-14 w-14',
-  lg: 'h-16 w-16',
-  xl: 'h-20 w-20',
+  xs: 'h-9 w-16',
+  sm: 'h-10 w-20',
+  md: 'h-12 w-24',
+  lg: 'h-16 w-32',
+  xl: 'h-20 w-40',
 } as const
 
 type BrandLogoSize = keyof typeof SIZES
@@ -51,12 +51,13 @@ export function BrandLogo({
         }
       }}
       className={cn(
-        'shrink-0 rounded-full object-contain bg-white',
+        'shrink-0 object-contain bg-white p-0.5',
         SIZES[size],
+        'rounded-xl',
         ring === 'light' && 'border border-white/25 bg-white shadow-sm',
         ring === 'dark' && 'border border-white/15 bg-white/95',
         ring === 'subtle' && 'border border-zinc-200/90 bg-white',
-        ring === 'gold' && 'border border-amber-200/50 bg-white ring-1 ring-emerald-200/25',
+        ring === 'gold' && 'border border-[#0033aa]/25 bg-white ring-1 ring-[#0033aa]/20',
         ring === false && 'border-0',
         className,
       )}

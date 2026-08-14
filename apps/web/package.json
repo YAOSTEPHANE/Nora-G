@@ -1,5 +1,5 @@
 {
-  "name": "@caisseci/web",
+  "name": "@nora/web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,4 +8,3 @@
     "start": "next start"
   }
 }
-

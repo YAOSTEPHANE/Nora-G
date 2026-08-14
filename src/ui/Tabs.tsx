@@ -37,7 +37,7 @@ export function Tabs<T extends string>({
       <div ref={scrollRef} className={cn(!fill && 'tabs-scroll-x', className)}>
         <div
           className={cn(
-            'items-center gap-0.5 rounded-lg border border-border bg-surface-sunken/70 p-0.5',
+            'items-center gap-0.5 rounded-xl border border-[rgba(26,35,50,0.08)] bg-white/55 p-1 shadow-[0_1px_0_rgba(255,255,255,0.8)_inset]',
             fill ? 'flex w-full' : 'inline-flex min-w-max',
           )}
         >
@@ -52,7 +52,7 @@ export function Tabs<T extends string>({
                 'inline-flex items-center justify-center gap-1.5 rounded-md font-semibold transition',
                 fill ? 'min-w-0 flex-1 px-2 py-1.5 text-[11px]' : 'gap-2 px-3 py-1.5 text-[12px]',
                 on
-                  ? 'bg-white text-ink shadow-[0_8px_20px_-16px_rgba(23,32,51,0.55)]'
+                  ? 'bg-[linear-gradient(180deg,#f7f8fc,#e8eefa)] text-ink shadow-[0_8px_20px_-16px_rgba(0,51,170,0.45)]'
                   : 'text-ink-subtle hover:text-ink',
                 '[&_svg]:h-3.5 [&_svg]:w-3.5',
               )}
@@ -107,7 +107,7 @@ export function Tabs<T extends string>({
             {on ? (
               <span
                 aria-hidden
-                className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-accent"
+                className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-caisse-gold"
               />
             ) : null}
           </button>

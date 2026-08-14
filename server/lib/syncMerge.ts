@@ -16,6 +16,14 @@ export type RemoteStockPayload = {
   updatedAt: number
 }
 
+export type RemoteProductPayload = {
+  productId: string
+  action: 'upsert' | 'delete'
+  product?: Record<string, unknown>
+  terminalId?: string
+  updatedAt: number
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
 }
@@ -24,7 +32,11 @@ export async function collectOrgSyncDeltas(
   organizationId: string,
   sinceMs: number,
   excludeTerminalId?: string | null,
-): Promise<{ sales: RemoteSalePayload[]; stockUpdates: RemoteStockPayload[] }> {
+): Promise<{
+  sales: RemoteSalePayload[]
+  stockUpdates: RemoteStockPayload[]
+  productUpdates: RemoteProductPayload[]
+}> {
   const since = new Date(sinceMs)
   const items = await prisma.syncItem.findMany({
     where: {
@@ -40,6 +52,7 @@ export async function collectOrgSyncDeltas(
 
   const salesMap = new Map<string, RemoteSalePayload>()
   const stockMap = new Map<string, RemoteStockPayload>()
+  const productMap = new Map<string, RemoteProductPayload>()
 
   for (const item of items) {
     const payload = asRecord(item.payload)
@@ -85,11 +98,26 @@ export async function collectOrgSyncDeltas(
         terminalId,
         updatedAt: item.createdAt.getTime(),
       })
+      continue
+    }
+
+    if (item.kind === 'product') {
+      const productId = typeof payload.productId === 'string' ? payload.productId : null
+      if (!productId) continue
+      const type = payload.type === 'product_delete' ? 'delete' : 'upsert'
+      productMap.set(productId, {
+        productId,
+        action: type,
+        product: asRecord(payload.product) ?? undefined,
+        terminalId,
+        updatedAt: item.createdAt.getTime(),
+      })
     }
   }
 
   return {
     sales: [...salesMap.values()],
     stockUpdates: [...stockMap.values()],
+    productUpdates: [...productMap.values()],
   }
 }

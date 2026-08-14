@@ -12,9 +12,15 @@ import {
 import { db } from '../db/db'
 import type { ProductWithStock, Store } from '../db/types'
 import { DEFAULT_STORE_ID } from '../db/seedStores'
+import {
+  APP_SETTINGS_CHANGED_EVENT,
+  getAppSettings,
+} from '../lib/appSettings'
+import type { BusinessDomain } from '../lib/businessDomain'
+import { productBelongsToDomain } from '../lib/domainCatalog'
 import { productIsActive } from '../lib/productFilters'
 
-const STORAGE_KEY = 'caisseci-active-store-id'
+const STORAGE_KEY = 'nora-active-store-id'
 
 function readStoredStoreId(): string | null {
   try {
@@ -55,10 +61,24 @@ export function ActiveStoreProvider({
   children,
   canSwitchStore,
 }: ProviderProps) {
-  const stores =
+  const allStores =
     useLiveQuery(() => db.stores.orderBy('sortOrder').toArray(), [], []) ?? []
+  const stores = useMemo(
+    () => allStores.filter((store) => !store.archived),
+    [allStores],
+  )
   const products =
     useLiveQuery(() => db.products.toArray(), [], []) ?? []
+
+  const [businessDomain, setBusinessDomain] = useState<BusinessDomain>(
+    () => getAppSettings().businessDomain,
+  )
+
+  useEffect(() => {
+    const sync = () => setBusinessDomain(getAppSettings().businessDomain)
+    window.addEventListener(APP_SETTINGS_CHANGED_EVENT, sync)
+    return () => window.removeEventListener(APP_SETTINGS_CHANGED_EVENT, sync)
+  }, [])
 
   const [requestedStoreId, setActiveStoreIdState] = useState(() => {
     const s = readStoredStoreId()
@@ -84,11 +104,12 @@ export function ActiveStoreProvider({
   const displayProducts = useMemo((): ProductWithStock[] => {
     return products
       .filter(productIsActive)
+      .filter((p) => productBelongsToDomain(p, businessDomain))
       .map((p) => ({
         ...p,
         stock: stockByProduct.get(p.id) ?? 0,
       }))
-  }, [products, stockByProduct])
+  }, [products, stockByProduct, businessDomain])
 
   const setActiveStoreId = useCallback((id: string) => {
     setActiveStoreIdState(id)

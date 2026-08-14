@@ -1,7 +1,6 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import { MarketingScreen } from '../src/screens/MarketingScreen'
-
+/** Connexion SaaS retirée — entrée directe sur le PIN staff. */
 export default function HomePage() {
-  return <MarketingScreen />
+  redirect('/staff')
 }

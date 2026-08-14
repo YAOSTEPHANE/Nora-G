@@ -1,9 +1,6 @@
-import { fetchStorefrontBranding } from './storefront/api'
-import { hasOrgAuth } from './subscription/authHeaders'
+const STORAGE_KEY = 'nora-receipt-logo-url'
 
-const STORAGE_KEY = 'caisseci-receipt-logo-url'
-
-/** Logo entreprise mis en cache (boutique / storefront). */
+/** Ancien cache logo vitrine — conservé pour le vider. */
 export function getCachedReceiptLogoUrl(): string | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)?.trim()
@@ -35,23 +32,8 @@ export function setCachedReceiptLogoUrl(url: string | null | undefined): void {
   }
 }
 
-/**
- * Résout le logo du magasin pour les tickets.
- * Préfère le cache local, sinon charge le branding boutique si session org.
- * Ne renvoie jamais le logo produit « Caisse CI ».
- */
+/** Les tickets n’affichent plus le logo vitrine. */
 export async function resolveReceiptLogoUrl(): Promise<string | null> {
-  const cached = getCachedReceiptLogoUrl()
-  if (cached) return cached
-
-  if (!hasOrgAuth()) return null
-
-  try {
-    const data = await fetchStorefrontBranding()
-    const logo = data.branding.logoUrl?.trim() || null
-    setCachedReceiptLogoUrl(logo)
-    return logo
-  } catch {
-    return null
-  }
+  setCachedReceiptLogoUrl(null)
+  return null
 }

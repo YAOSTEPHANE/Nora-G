@@ -45,6 +45,13 @@ type PullResponse = {
     terminalId?: string
     updatedAt: number
   }>
+  productUpdates?: Array<{
+    productId: string
+    action: 'upsert' | 'delete'
+    product?: Record<string, unknown>
+    terminalId?: string
+    updatedAt: number
+  }>
   integrations: Record<string, unknown>
 }
 
@@ -55,7 +62,7 @@ export async function pullCloudData(): Promise<CloudPullResult> {
 
   const since = getLastSyncTimestamp() ?? 0
   try {
-    const res = await fetch(apiUrl(`/caisseci/sync/pull?since=${since}`), {
+    const res = await fetch(apiUrl(`/nora/sync/pull?since=${since}`), {
       headers: buildOrgAuthHeaders({
         Accept: 'application/json',
         'x-terminal-id': getOrCreateTerminalId(),
@@ -67,6 +74,7 @@ export async function pullCloudData(): Promise<CloudPullResult> {
     const merge = await mergeCloudDeltas({
       sales: data.sales ?? [],
       stockUpdates: data.stockUpdates ?? [],
+      productUpdates: data.productUpdates ?? [],
     })
     await applyIntegrationsFromCloud(data.integrations)
     setLastSyncTimestamp(data.pulledAt)

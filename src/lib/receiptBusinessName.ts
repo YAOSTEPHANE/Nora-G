@@ -12,7 +12,7 @@ export function getReceiptBusinessName(): string {
   if (fromCreds) return fromCreds
   const fromSnap = getCachedSubscription()?.name?.trim()
   if (fromSnap) return fromSnap
-  return 'CaisseCI'
+  return 'Nora'
 }
 
 export function receiptDocumentLabel(

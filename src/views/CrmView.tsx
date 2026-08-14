@@ -4,12 +4,21 @@ import { db } from '../db/db'
 import type { CrmInteractionKind } from '../db/types'
 import { downloadTextFile, toCsvSemicolon } from '../lib/analyticsExport'
 import { formatFCFA } from '../lib/money'
+import {
+  customerCreditAvailable,
+  customerCreditBalance,
+  customerCreditLimit,
+  recordCustomerCreditPayment,
+  setCustomerCreditLimit,
+} from '../lib/customerCredit'
 import { Button } from '../ui/Button'
-import { Card, CardContent } from '../ui/Card'
+import { Card, CardContent, CardHeader } from '../ui/Card'
+import { FormGrid, FormPanel } from '../ui/Form'
 import { EmptyState } from '../ui/EmptyState'
 import { Field, Input, Select } from '../ui/Input'
 import { Kpi } from '../ui/Kpi'
 import { PageHeader } from '../ui/PageHeader'
+import { IconUser } from '../ui/icons'
 import { Table, TBody, Td, Th, THead, Tr } from '../ui/Table'
 import { MobileDataCard, ResponsiveData } from '../ui/ResponsiveData'
 import { useToast } from '../ui/Toast'
@@ -25,6 +34,8 @@ export function CrmView({ actor }: Props) {
   const [kind, setKind] = useState<CrmInteractionKind>('call')
   const [note, setNote] = useState('')
   const [nextActionDate, setNextActionDate] = useState('')
+  const [creditLimitEdit, setCreditLimitEdit] = useState('')
+  const [creditPayEdit, setCreditPayEdit] = useState('')
   const [now] = useState(Date.now)
 
   const customers = useLiveQuery(() => db.loyaltyCustomers.orderBy('updatedAt').reverse().toArray(), [], []) ?? []
@@ -33,6 +44,7 @@ export function CrmView({ actor }: Props) {
 
   const crmRows = useMemo(() => {
     return customers
+      .filter((c) => !c.archived)
       .map((c) => {
         const customerSales = sales.filter((s) => s.loyaltyCustomerId === c.id || s.loyaltyCustomerPhone === c.phone)
         const totalSpent = customerSales.reduce((sum, s) => sum + saleNetTTC(s), 0)
@@ -49,6 +61,9 @@ export function CrmView({ actor }: Props) {
           totalSpent,
           lastSaleAt,
           lastInteractionAt,
+          creditBalance: customerCreditBalance(c),
+          creditLimit: customerCreditLimit(c),
+          creditAvailable: customerCreditAvailable(c),
         }
       })
       .sort((a, b) => b.totalSpent - a.totalSpent)
@@ -85,9 +100,52 @@ export function CrmView({ actor }: Props) {
     toast.success('Interaction CRM enregistrée')
   }
 
+  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
+
+  const saveCreditLimit = async (): Promise<void> => {
+    if (!selectedCustomer) {
+      toast.error('Sélectionnez un client')
+      return
+    }
+    const n = Number.parseInt(creditLimitEdit.replace(/\s/g, ''), 10)
+    if (!Number.isFinite(n) || n < 0) {
+      toast.error('Plafond invalide')
+      return
+    }
+    await setCustomerCreditLimit(selectedCustomer.id, n)
+    setCreditLimitEdit('')
+    toast.success('Plafond crédit mis à jour', formatFCFA(n))
+  }
+
+  const payCredit = async (): Promise<void> => {
+    if (!selectedCustomer) {
+      toast.error('Sélectionnez un client')
+      return
+    }
+    const n = Number.parseInt(creditPayEdit.replace(/\s/g, ''), 10)
+    if (!Number.isFinite(n) || n <= 0) {
+      toast.error('Montant invalide')
+      return
+    }
+    try {
+      await recordCustomerCreditPayment({
+        customerId: selectedCustomer.id,
+        amountTTC: n,
+        actor: { profileId: actor.id, displayName: actor.displayName },
+      })
+      setCreditPayEdit('')
+      toast.success('Règlement encours enregistré', formatFCFA(n))
+    } catch (e) {
+      toast.error(
+        'Échec',
+        e instanceof Error ? e.message : String(e),
+      )
+    }
+  }
+
   const exportCrmCsv = (): void => {
     const rows: string[][] = [
-      ['CRM clients'],
+      ['Clients'],
       ['Client', 'Téléphone', 'Visites', 'Points', 'CA net'],
       ...crmRows.map((r) => [r.name, r.phone, String(r.visits), String(r.points), String(r.totalSpent)]),
       [],
@@ -106,11 +164,12 @@ export function CrmView({ actor }: Props) {
   }
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
       <PageHeader
+        icon={<IconUser />}
         eyebrow="Relation client"
-        title="CRM clients"
-        subtitle="Segmentation clients, interactions commerciales et plan de relance"
+        title="Clients"
+        subtitle="Segmentation, interactions et plan de relance"
         actions={
           <Button variant="secondary" className="w-full sm:w-auto" onClick={exportCrmCsv}>
             Export CRM
@@ -124,8 +183,74 @@ export function CrmView({ actor }: Props) {
         <Kpi label="Relances en retard" value={String(overdueFollowups)} tone="amber" />
       </div>
 
-      <Card className="bg-[linear-gradient(165deg,rgba(255,255,255,0.98),rgba(246,250,255,0.94))]">
-        <CardContent className="grid gap-2 md:grid-cols-2">
+      <FormPanel
+        eyebrow="Crédit"
+        title="Compte client"
+        description="Plafond d’encours et règlements (vente à crédit en caisse)."
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => void saveCreditLimit()}>
+              Enregistrer plafond
+            </Button>
+            <Button variant="accent" onClick={() => void payCredit()}>
+              Enregistrer règlement
+            </Button>
+          </>
+        }
+      >
+        <FormGrid>
+          <Field label="Client">
+            <Select value={selectedCustomerId} onChange={(e) => setSelectedCustomerId(e.target.value)}>
+              <option value="">Sélectionner</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {(c.displayName || 'Client')} · {c.phone}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <div className="rounded-2xl border border-[rgba(0,51,170,0.1)] bg-[#f7f8fc] px-3.5 py-3 text-[12px] text-ink-muted">
+            {selectedCustomer ? (
+              <>
+                Encours {formatFCFA(customerCreditBalance(selectedCustomer))} ·
+                Plafond {formatFCFA(customerCreditLimit(selectedCustomer))} ·
+                Dispo {formatFCFA(customerCreditAvailable(selectedCustomer))}
+              </>
+            ) : (
+              'Sélectionnez un client pour gérer le crédit.'
+            )}
+          </div>
+          <Field label="Nouveau plafond (FCFA)">
+            <Input
+              inputMode="numeric"
+              value={creditLimitEdit}
+              onChange={(e) => setCreditLimitEdit(e.target.value)}
+              className="font-mono-nums"
+              placeholder="ex. 100000"
+            />
+          </Field>
+          <Field label="Règlement encours (FCFA)">
+            <Input
+              inputMode="numeric"
+              value={creditPayEdit}
+              onChange={(e) => setCreditPayEdit(e.target.value)}
+              className="font-mono-nums"
+            />
+          </Field>
+        </FormGrid>
+      </FormPanel>
+
+      <FormPanel
+        eyebrow="Saisie"
+        title="Nouvelle interaction"
+        description="Enregistrez un appel, un message ou une relance."
+        actions={
+          <Button variant="accent" onClick={() => void addInteraction()}>
+            Ajouter interaction
+          </Button>
+        }
+      >
+        <FormGrid>
           <Field label="Client">
             <Select value={selectedCustomerId} onChange={(e) => setSelectedCustomerId(e.target.value)}>
               <option value="">Sélectionner</option>
@@ -149,18 +274,14 @@ export function CrmView({ actor }: Props) {
           <Field label="Prochaine action">
             <Input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} />
           </Field>
-          <Field label="Note" className="md:col-span-2">
+          <Field label="Note" className="sm:col-span-2">
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex: client intéressé par lot boisson, rappel vendredi..." />
           </Field>
-          <div className="md:col-span-2">
-            <Button variant="accent" fullWidth className="sm:w-auto" onClick={() => void addInteraction()}>
-              Ajouter interaction
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        </FormGrid>
+      </FormPanel>
 
-      <Card className="bg-[linear-gradient(165deg,rgba(255,255,255,0.98),rgba(246,250,255,0.94))]">
+      <Card>
+        <CardHeader title="Portefeuille clients" subtitle="Segmentation et prochaines actions" />
         <CardContent>
           {crmRows.length === 0 ? (
             <EmptyState title="Aucun client CRM" description="Les clients du programme fidélité apparaîtront ici." variant="flat" />
@@ -179,6 +300,9 @@ export function CrmView({ actor }: Props) {
                         Points
                       </Th>
                       <Th align="right">CA net</Th>
+                      <Th align="right" hideBelow="lg">
+                        Encours
+                      </Th>
                       <Th hideBelow="xl">Dernier achat</Th>
                       <Th hideBelow="xl">Dernière interaction</Th>
                     </Tr>
@@ -196,6 +320,9 @@ export function CrmView({ actor }: Props) {
                         </Td>
                         <Td align="right" mono className="font-semibold">
                           {formatFCFA(r.totalSpent)}
+                        </Td>
+                        <Td align="right" mono hideBelow="lg">
+                          {formatFCFA(r.creditBalance)}
                         </Td>
                         <Td hideBelow="xl">
                           {r.lastSaleAt

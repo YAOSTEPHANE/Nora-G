@@ -29,7 +29,7 @@ export function Switch({
         />
         <span
           aria-hidden
-          className="absolute inset-0 rounded-full bg-zinc-200 transition peer-checked:bg-zinc-900"
+          className="absolute inset-0 rounded-full bg-[#d8deea] transition peer-checked:bg-[#0033aa]"
         />
         <span
           aria-hidden

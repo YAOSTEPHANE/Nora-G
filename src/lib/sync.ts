@@ -1,5 +1,5 @@
 import { db } from '../db/db'
-import type { SyncQueueItem } from '../db/types'
+import type { Product, SyncQueueItem } from '../db/types'
 import { cloudSyncPushUrl, isCloudApiConfigured } from './apiUrl'
 import { buildOrgAuthHeaders } from './subscription/authHeaders'
 import { getOrganizationCredentials } from './subscription/store'
@@ -59,8 +59,26 @@ export async function enqueueStockSync(payload: {
   })
 }
 
+export async function enqueueProductSync(input: {
+  action: 'upsert' | 'delete'
+  productId: string
+  product?: Product
+}): Promise<void> {
+  await db.syncQueue.add({
+    kind: 'product',
+    payload: JSON.stringify({
+      type: input.action === 'delete' ? 'product_delete' : 'product_upsert',
+      productId: input.productId,
+      product: input.product,
+      terminalId: getOrCreateTerminalId(),
+      at: Date.now(),
+    }),
+    createdAt: Date.now(),
+  })
+}
+
 /**
- * Synchronise la file vers le cloud via `POST /api/caisseci/sync` lorsque l’API est joignable.
+ * Synchronise la file vers le cloud via `POST /api/nora/sync` lorsque l’API est joignable.
  * La file n'est supprimée qu'après accusé de réception du serveur.
  */
 export async function flushSyncQueue(): Promise<SyncResult> {

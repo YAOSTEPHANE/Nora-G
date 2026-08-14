@@ -70,7 +70,7 @@ function requireApiKey(creds: PaymentProviderCreds): string {
   const key = creds.waveApiKey
   if (!key) {
     throw new Error(
-      'Clé Wave manquante. Configurez-la pour cet abonnement (Intégrations) ou en console /admin.',
+      'Clé Wave manquante. Configurez-la dans Intégrations (clés magasin) ou via les variables d’environnement plateforme.',
     )
   }
   return key

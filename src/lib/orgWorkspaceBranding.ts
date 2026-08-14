@@ -1,4 +1,4 @@
-import { fetchStorefrontBranding } from './storefront/api'
+﻿import { fetchStorefrontBranding } from './storefront/api'
 import { storefrontDisplayName } from './storefront/types'
 import { hasOrgAuth } from './subscription/authHeaders'
 import {
@@ -6,8 +6,8 @@ import {
   setCachedReceiptLogoUrl,
 } from './receiptLogo'
 
-const NAME_KEY = 'caisseci-org-display-name'
-export const ORG_BRANDING_CHANGED_EVENT = 'caisseci:org-branding-changed'
+const NAME_KEY = 'nora-org-display-name'
+export const ORG_BRANDING_CHANGED_EVENT = 'nora:org-branding-changed'
 
 export type OrgWorkspaceBranding = {
   logoUrl: string | null

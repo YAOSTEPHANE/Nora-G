@@ -135,11 +135,11 @@ export function validateCheckoutPayment(
   }
 
   // Paiement simple
-  if (!online && state.method !== 'cash') {
+  if (!online && state.method !== 'cash' && state.method !== 'credit') {
     return {
       ok: false,
       message:
-        'Hors ligne : encaissement en espèces uniquement. Carte et mobile nécessitent le réseau.',
+        'Hors ligne : encaissement en espèces ou crédit client uniquement. Carte et mobile nécessitent le réseau.',
     }
   }
 
@@ -172,6 +172,13 @@ export function validateCheckoutPayment(
       cardTpeReference:
         state.cardRef.trim() ||
         `TPE-${Date.now().toString(36).toUpperCase().slice(-10)}`,
+    }
+  }
+
+  if (state.method === 'credit') {
+    return {
+      ok: true,
+      split: { cash: 0, card: 0, mobile: 0 },
     }
   }
 
@@ -224,6 +231,8 @@ export function confirmCheckoutSummary(
   } else if (state.method === 'card') {
     lines.push(`Carte bancaire (TPE intégré)`)
     if (v.cardTpeReference) lines.push(`Réf. : ${v.cardTpeReference}`)
+  } else if (state.method === 'credit') {
+    lines.push(`Crédit client — ${formatFCFA(total)}`)
   } else {
     lines.push(
       `${MOBILE_OPERATOR_LABELS[state.mobileOperator]} — ${formatFCFA(total)}`,

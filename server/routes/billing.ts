@@ -1,6 +1,5 @@
 import { randomBytes } from 'node:crypto'
 import { Router, type Request, type Response } from 'express'
-import type Stripe from 'stripe'
 import type { Organization } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import {
@@ -8,7 +7,6 @@ import {
   TRIAL_DAYS,
   type PlanId,
   type SubscriptionStatus,
-  isSubscriptionUsable,
 } from '../lib/subscriptionPlans.js'
 import { MOBILE_MONEY_CHANNELS_CI } from '../lib/mobileMoneyChannels.js'
 import { mobileMoneyEnabled } from '../lib/cinetpay.js'
@@ -20,12 +18,6 @@ import {
 } from '../lib/orgPaymentCredentials.js'
 import { ensurePaymentConfigReady } from '../lib/paymentProviderSettings.js'
 import { waveEnabled } from '../lib/wave.js'
-import { runSubscriptionReminders } from '../lib/subscriptionReminders.js'
-import { getStripe, publicAppUrl, stripeConfigured } from '../lib/stripe.js'
-import {
-  subscriptionCancelUrl,
-  subscriptionSuccessUrl,
-} from '../lib/appUrls.js'
 import {
   hashOwnerPassword,
   isGmailAddress,
@@ -114,11 +106,7 @@ function orgPayload(org: {
 }, sessionToken?: string) {
   const planId = parsePlanId(org.planId)
   const status = parseStatus(org.status)
-  const usable = isSubscriptionUsable(
-    status,
-    org.currentPeriodEnd,
-    org.trialEndsAt,
-  )
+  const usable = true
   const storeSlug = org.storeSlug?.trim() || null
   const storeCode = org.storeCode ?? null
   return {
@@ -137,7 +125,7 @@ function orgPayload(org: {
     usable,
     trialEndsAt: org.trialEndsAt?.toISOString() ?? null,
     currentPeriodEnd: org.currentPeriodEnd?.toISOString() ?? null,
-    stripeEnabled: stripeConfigured(),
+    stripeEnabled: false,
     mobileMoneyEnabled: mobileMoneyEnabled(),
     waveEnabled: waveEnabled(),
     billingPhone: org.billingPhone ?? null,
@@ -181,7 +169,7 @@ billingRouter.get('/billing/plans', (_req, res) => {
   res.json({
     plans: Object.values(SUBSCRIPTION_PLANS),
     trialDays: TRIAL_DAYS,
-    stripeEnabled: stripeConfigured(),
+    stripeEnabled: false,
     mobileMoneyEnabled: mobileMoneyEnabled(),
     waveEnabled: waveEnabled(),
   })
@@ -219,11 +207,6 @@ billingRouter.post('/billing/register', async (req, res) => {
       return
     }
 
-    const planId = parsePlanId(
-      typeof req.body?.planId === 'string' ? req.body.planId : undefined,
-    )
-    const trialEndsAt = new Date()
-    trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS)
     const storeCode = await generateStoreCode()
     const storeSlug = await allocateUniqueStoreSlug(name, { storeCode })
 
@@ -235,9 +218,10 @@ billingRouter.post('/billing/register', async (req, res) => {
         licenseKey: generateLicenseKey(),
         storeCode,
         storeSlug,
-        planId,
-        status: 'trialing',
-        trialEndsAt,
+        planId: 'business',
+        status: 'active',
+        trialEndsAt: null,
+        currentPeriodEnd: null,
       },
     })
 
@@ -356,25 +340,7 @@ billingRouter.get('/billing/status', async (req, res) => {
       return
     }
 
-    let updated: OrgWithStoreCode = org
-    if (
-      org.status === 'trialing' &&
-      org.trialEndsAt &&
-      org.trialEndsAt.getTime() < Date.now() &&
-      !org.stripeSubId
-    ) {
-      updated = await ensureStoreCode(
-        await prisma.organization.update({
-          where: { id: org.id },
-          data: { status: 'expired' },
-        }),
-      )
-    }
-
-    void runSubscriptionReminders(org.id).catch((err) => {
-      console.error('[billing/status:reminders]', err)
-    })
-
+    const updated = await ensureStoreCode(org)
     res.json(orgPayload(updated))
   } catch (err) {
     console.error('[billing/status]', err)
@@ -443,76 +409,8 @@ billingRouter.get('/billing/payments/history', async (req, res) => {
   }
 })
 
-billingRouter.post('/billing/checkout', async (req, res) => {
-  try {
-    const planId = parsePlanId(
-      typeof req.body?.planId === 'string' ? req.body.planId : undefined,
-    )
-    const org = await requireBillingOrg(req, res)
-    if (!org) return
-
-    const stripe = getStripe()
-    if (!stripe) {
-      res.status(503).json({
-        error: 'Paiement en ligne indisponible. Contactez le support pour activer votre plan.',
-      })
-      return
-    }
-
-    let customerId = org.stripeCustomerId
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: org.email,
-        name: org.name,
-        metadata: { organizationId: org.id, licenseKey: org.licenseKey },
-      })
-      customerId = customer.id
-      await prisma.organization.update({
-        where: { id: org.id },
-        data: { stripeCustomerId: customerId },
-      })
-    }
-
-    const plan = SUBSCRIPTION_PLANS[planId]
-    const baseUrl = publicAppUrl(req)
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: customerId,
-      line_items: [
-        {
-          price_data: {
-            currency: process.env.STRIPE_CURRENCY?.trim() || 'xof',
-            product_data: {
-              name: `CaisseCI ${plan.name}`,
-              description: plan.description,
-            },
-            unit_amount: plan.priceFcfa,
-            recurring: { interval: 'month' },
-          },
-          quantity: 1,
-        },
-      ],
-      subscription_data: {
-        metadata: {
-          organizationId: org.id,
-          planId,
-          licenseKey: org.licenseKey,
-        },
-      },
-      metadata: {
-        organizationId: org.id,
-        planId,
-        licenseKey: org.licenseKey,
-      },
-      success_url: subscriptionSuccessUrl(baseUrl),
-      cancel_url: subscriptionCancelUrl(baseUrl),
-    })
-
-    res.json({ url: session.url })
-  } catch (err) {
-    console.error('[billing/checkout]', err)
-    res.status(500).json({ error: 'Impossible de démarrer le paiement.' })
-  }
+billingRouter.post('/billing/checkout', (_req, res) => {
+  res.status(410).json({ error: 'Les abonnements payants ont été retirés.' })
 })
 
 billingRouter.get('/billing/payment-providers', async (req, res) => {
@@ -564,175 +462,10 @@ billingRouter.put('/billing/payment-providers', async (req, res) => {
   }
 })
 
-billingRouter.post('/billing/portal', async (req, res) => {
-  try {
-    const org = await requireBillingOrg(req, res)
-    if (!org) return
-
-    const stripe = getStripe()
-    if (!stripe) {
-      res.status(503).json({ error: 'Portail client indisponible.' })
-      return
-    }
-
-    if (!org.stripeCustomerId) {
-      res.status(400).json({ error: 'Aucun abonnement Stripe associé.' })
-      return
-    }
-
-    const session = await stripe.billingPortal.sessions.create({
-      customer: org.stripeCustomerId,
-      return_url: `${publicAppUrl(req)}/abonnement`,
-    })
-
-    res.json({ url: session.url })
-  } catch (err) {
-    console.error('[billing/portal]', err)
-    res.status(500).json({ error: 'Impossible d’ouvrir le portail client.' })
-  }
+billingRouter.post('/billing/portal', (_req, res) => {
+  res.status(410).json({ error: 'Les abonnements payants ont été retirés.' })
 })
 
-function subscriptionPeriodEnd(subscription: Stripe.Subscription): Date | null {
-  const raw = subscription as Stripe.Subscription & {
-    current_period_end?: number
-    billing_schedules?: Array<{ current_period_end?: number }>
-  }
-  if (raw.current_period_end) {
-    return new Date(raw.current_period_end * 1000)
-  }
-  const scheduleEnd = raw.billing_schedules?.[0]?.current_period_end
-  if (scheduleEnd) return new Date(scheduleEnd * 1000)
-  if (subscription.trial_end) return new Date(subscription.trial_end * 1000)
-  return null
-}
-
-function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
-  const raw = invoice as Stripe.Invoice & {
-    subscription?: string | { id: string } | null
-  }
-  if (!raw.subscription) return null
-  return typeof raw.subscription === 'string'
-    ? raw.subscription
-    : raw.subscription.id
-}
-
-async function applyStripeSubscription(
-  organizationId: string,
-  subscription: Stripe.Subscription,
-) {
-  const planId = parsePlanId(subscription.metadata.planId)
-  const status = mapStripeStatus(subscription.status)
-  const currentPeriodEnd = subscriptionPeriodEnd(subscription)
-
-  await prisma.organization.update({
-    where: { id: organizationId },
-    data: {
-      planId,
-      status,
-      stripeSubId: subscription.id,
-      currentPeriodEnd,
-      trialEndsAt: subscription.trial_end
-        ? new Date(subscription.trial_end * 1000)
-        : null,
-    },
-  })
-}
-
-function mapStripeStatus(stripeStatus: Stripe.Subscription.Status): SubscriptionStatus {
-  switch (stripeStatus) {
-    case 'trialing':
-      return 'trialing'
-    case 'active':
-      return 'active'
-    case 'past_due':
-    case 'unpaid':
-      return 'past_due'
-    case 'canceled':
-      return 'canceled'
-    default:
-      return 'expired'
-  }
-}
-
-export async function handleStripeWebhook(req: Request, res: Response) {
-  const stripe = getStripe()
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim()
-  if (!stripe || !webhookSecret) {
-    res.status(503).json({ error: 'Webhook Stripe non configuré.' })
-    return
-  }
-
-  const signature = req.get('stripe-signature')
-  if (!signature) {
-    res.status(400).json({ error: 'Signature manquante.' })
-    return
-  }
-
-  let event: Stripe.Event
-  try {
-    event = stripe.webhooks.constructEvent(req.body, signature, webhookSecret)
-  } catch (err) {
-    console.error('[billing/webhook] signature', err)
-    res.status(400).json({ error: 'Signature invalide.' })
-    return
-  }
-
-  try {
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session
-        const organizationId = session.metadata?.organizationId
-        const subscriptionId =
-          typeof session.subscription === 'string'
-            ? session.subscription
-            : session.subscription?.id
-        if (organizationId && subscriptionId) {
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-          await applyStripeSubscription(organizationId, subscription)
-        }
-        break
-      }
-      case 'customer.subscription.updated':
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription
-        const organizationId = subscription.metadata.organizationId
-        if (organizationId) {
-          if (event.type === 'customer.subscription.deleted') {
-            await prisma.organization.update({
-              where: { id: organizationId },
-              data: {
-                status: 'canceled',
-                currentPeriodEnd: subscriptionPeriodEnd(subscription),
-                stripeSubId: null,
-              },
-            })
-          } else {
-            await applyStripeSubscription(organizationId, subscription)
-          }
-        }
-        break
-      }
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice
-        const subId = invoiceSubscriptionId(invoice)
-        if (subId) {
-          const subscription = await stripe.subscriptions.retrieve(subId)
-          const organizationId = subscription.metadata.organizationId
-          if (organizationId) {
-            await prisma.organization.update({
-              where: { id: organizationId },
-              data: { status: 'past_due' },
-            })
-          }
-        }
-        break
-      }
-      default:
-        break
-    }
-    res.json({ received: true })
-  } catch (err) {
-    console.error('[billing/webhook]', err)
-    res.status(500).json({ error: 'Traitement webhook échoué.' })
-  }
+export async function handleStripeWebhook(_req: Request, res: Response) {
+  res.status(410).json({ error: 'Webhooks Stripe abonnement désactivés.' })
 }

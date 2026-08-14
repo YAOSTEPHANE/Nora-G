@@ -1,9 +1,11 @@
 import type { OrganizationCredentials, SubscriptionSnapshot } from './types'
-import { OFFLINE_GRACE_MS } from './plans'
 
-const ORG_KEY = 'caisseci-org-credentials-v1'
-const SNAPSHOT_KEY = 'caisseci-subscription-snapshot-v1'
-const SESSION_KEY = 'caisseci-session-token-v1'
+/** Grace hors-ligne pour le cache d’abonnement (7 jours). */
+const OFFLINE_GRACE_MS = 168 * 60 * 60 * 1000
+
+const ORG_KEY = 'nora-org-credentials-v1'
+const SNAPSHOT_KEY = 'nora-subscription-snapshot-v1'
+const SESSION_KEY = 'nora-session-token-v1'
 
 function readSessionToken(): string | undefined {
   try {
@@ -56,6 +58,8 @@ export function setOrganizationCredentials(creds: OrganizationCredentials): void
 export function clearOrganizationCredentials(): void {
   localStorage.removeItem(ORG_KEY)
   localStorage.removeItem(SNAPSHOT_KEY)
+  localStorage.removeItem('nora-receipt-logo-url')
+  localStorage.removeItem('nora-org-display-name')
   writeSessionToken(undefined)
 }
 
@@ -86,13 +90,7 @@ export function isCacheWithinGrace(snapshot: SubscriptionSnapshot | null): boole
 
 export function effectiveUsable(
   snapshot: SubscriptionSnapshot | null,
-  online: boolean,
+  _online: boolean,
 ): boolean {
-  if (!snapshot) return false
-  if (online) return snapshot.usable
-  return (
-    snapshot.usable &&
-    snapshot.status !== 'expired' &&
-    isCacheWithinGrace(snapshot)
-  )
+  return Boolean(snapshot)
 }

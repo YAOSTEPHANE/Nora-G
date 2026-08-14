@@ -184,7 +184,7 @@ export function PublicStorefrontPage({ storeCode, online }: Props) {
       <div className="storefront-shell flex min-h-svh items-center justify-center">
         <div
           className="h-10 w-10 animate-spin rounded-full border-2 border-stone-300"
-          style={{ borderTopColor: 'var(--storefront-accent, #c4a35a)' }}
+          style={{ borderTopColor: 'var(--storefront-accent, #0033aa)' }}
         />
       </div>
     )

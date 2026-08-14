@@ -72,4 +72,5 @@ export {
   Truck as IconTruck,
   Star as IconStar,
   Zap as IconZap,
+  Wrench as IconWrench,
 } from 'lucide-react'

@@ -141,7 +141,7 @@ export function AnalytiqueView() {
   const previousTickets = previousRangeSales.length
   const breakdown = useMemo(() => paymentBreakdown(rangeSales), [rangeSales])
   const payKeys = useMemo(() => {
-    const keys: PaymentMethod[] = ['cash', 'card', 'mobile']
+    const keys: PaymentMethod[] = ['cash', 'card', 'mobile', 'credit']
     if (breakdown.mixed > 0) keys.push('mixed')
     return keys
   }, [breakdown.mixed])
@@ -205,7 +205,7 @@ export function AnalytiqueView() {
 
   const exportSummaryCsv = useCallback(() => {
     const rows: string[][] = [
-      ['Rapport analytique Caisse CI'],
+      ['Rapport analytique Nora'],
       ['Période', periodLabel],
       ['CA net TTC', String(caPeriod)],
       ['Tickets', String(tickets)],
@@ -267,7 +267,7 @@ export function AnalytiqueView() {
 
   const exportWebOrdersCsv = useCallback(() => {
     const rows: string[][] = [
-      ['Analytique — commandes web Caisse CI'],
+      ['Analytique — commandes web Nora'],
       ['Période (date de création)', periodLabel],
       ['Commandes créées', String(webStats.created)],
       ['En attente (état actuel)', String(webStats.pending)],
@@ -409,10 +409,11 @@ export function AnalytiqueView() {
   )
 
   return (
-    <div className="space-y-5 pb-6 sm:space-y-6">
+    <div className="module-page">
       <PageHeader
-        eyebrow="Analytique"
-        title="Performance commerciale"
+        icon={<IconSpreadsheet />}
+        eyebrow="Stats"
+        title="Stats"
         subtitle={`Période glissante de ${periodLabel} · CA net après remboursements`}
         actions={
           <div className="flex flex-wrap items-center gap-2 print:hidden">
@@ -678,7 +679,7 @@ export function AnalytiqueView() {
         <Card>
           <CardHeader
             eyebrow="Canal web"
-            title="Commandes en ligne"
+            title="Commandes"
             subtitle={`Créées sur ${periodLabel} · volumes par jour de création (état au moment présent)`}
             action={
               <Button

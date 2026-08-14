@@ -45,7 +45,7 @@ export function MobileDataCard({
   return (
     <li
       className={cn(
-        'rounded-xl border border-border bg-white/96 p-3 shadow-[0_8px_24px_-20px_rgba(23,32,51,0.35)]',
+        'rounded-2xl border border-[rgba(26,35,50,0.07)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(252,250,246,0.88))] p-3.5 shadow-[0_18px_40px_-28px_rgba(23,32,51,0.28)]',
         className,
       )}
     >

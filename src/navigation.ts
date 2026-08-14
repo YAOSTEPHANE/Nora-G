@@ -1,8 +1,8 @@
 import type { UserRole } from './auth/types'
 
 export type NavViewId =
-  | 'caisse'
   | 'dash'
+  | 'caisse'
   | 'catalogue'
   | 'stocks'
   | 'comptabilite'
@@ -21,59 +21,166 @@ export type NavViewId =
   | 'integrations'
   | 'parametres'
   | 'network'
-  | 'subscription'
+  | 'achats'
+  | 'devis'
+  | 'sav'
+  | 'credits'
+  | 'inventairePhysique'
+  | 'peremptions'
+  | 'livraisons'
+  | 'location'
+  | 'carte'
+  | 'cadeaux'
+  | 'rdv'
+  | 'tarifs'
+  | 'retoursFournisseur'
+  | 'production'
+  | 'bl'
+  | 'depenses'
+  | 'retoursClient'
+  | 'consignes'
+  | 'ordonnances'
+  | 'chantiers'
+  | 'abonnements'
+  | 'haccp'
+  | 'vip'
+  | 'commissions'
+  | 'misesDeCote'
+  | 'pertes'
+  | 'allergenes'
+  | 'evenements'
+  | 'reprises'
+  | 'protocoles'
+  | 'cave'
+  | 'magistrales'
 
+/** Libellés courts pour la grille modules et la navigation. */
 export const VIEW_LABELS: Record<NavViewId, string> = {
-  caisse: 'Caisse',
   dash: 'Tableau de bord',
-  catalogue: 'Catalogue',
-  stocks: 'Stocks',
-  comptabilite: 'Comptabilité',
-  rh: 'Gestion RH',
-  crm: 'CRM clients',
-  tables: 'Gestion des tables',
-  promotions: 'Promotions',
-  loyalty: 'Programme de fidélité',
+  caisse: 'Caisse',
+  catalogue: 'Articles',
+  stocks: 'Inventaire',
+  comptabilite: 'Compta',
+  rh: 'RH',
+  crm: 'Clients',
+  tables: 'Tables',
+  promotions: 'Offres',
+  loyalty: 'Fidélité',
   kitchen: 'Cuisine',
-  ticketsFactures: 'Tickets & factures',
-  onlineOrders: 'Commandes en ligne',
-  journal: 'Rapport journalier',
-  personnel: 'Personnel',
-  pointage: 'Pointage',
-  analytique: 'Analytique',
-  integrations: 'Intégrations',
-  parametres: 'Paramètres',
-  network: 'Multi-magasins',
-  subscription: 'Abonnement',
+  ticketsFactures: 'Factures',
+  onlineOrders: 'Commandes',
+  journal: 'Journal',
+  personnel: 'Équipe',
+  pointage: 'Présences',
+  analytique: 'Stats',
+  integrations: 'Connexions',
+  parametres: 'Réglages',
+  network: 'Magasins',
+  achats: 'Achats',
+  devis: 'Devis',
+  sav: 'SAV',
+  credits: 'Crédits',
+  inventairePhysique: 'Comptage',
+  peremptions: 'Péremptions',
+  livraisons: 'Livraisons',
+  location: 'Location',
+  carte: 'Carte',
+  cadeaux: 'Cadeaux',
+  rdv: 'Rendez-vous',
+  tarifs: 'Tarifs',
+  retoursFournisseur: 'Retours FRS',
+  production: 'Production',
+  bl: 'Bons livraison',
+  depenses: 'Dépenses',
+  retoursClient: 'Retours client',
+  consignes: 'Consignes',
+  ordonnances: 'Ordonnances',
+  chantiers: 'Chantiers',
+  abonnements: 'Abonnements',
+  haccp: 'Hygiène',
+  vip: 'VIP',
+  commissions: 'Commissions',
+  misesDeCote: 'Mises de côté',
+  pertes: 'Pertes',
+  allergenes: 'Allergènes',
+  evenements: 'Événements',
+  reprises: 'Reprises',
+  protocoles: 'Protocoles',
+  cave: 'Cave',
+  magistrales: 'Magistrales',
 }
 
 export const VIEW_SUBTITLES: Record<NavViewId, string> = {
-  caisse: 'Scan, recherche, catégories, panier et TVA',
-  dash: "Vue d'ensemble de l'activité",
-  catalogue: 'Articles, prix et codes-barres',
-  stocks:
-    'Décrémentation à la vente, seuils d’alerte, inventaire manuel',
-  comptabilite: 'Journaux comptables, ventilation HT/TVA et export des écritures',
-  rh: 'Demandes RH, présence équipe et validations manager',
-  crm: 'Suivi clients, interactions commerciales et relances',
-  tables: 'Occupation, réservation et rotation des tables de service',
-  promotions: 'Codes promo, fenêtres d’activation et seuils minimum panier',
-  loyalty: 'Points clients, remises fidélité et historique des transactions',
-  kitchen: 'Production cuisine, tickets et suivi des statuts de préparation',
-  ticketsFactures:
-    'Création, émission, suivi des règlements et archivage des tickets/factures',
-  onlineOrders:
-    'Validation des commandes web avant décrémentation stock et vente',
-  journal: 'Synthèse du jour, paiements et reçus',
-  personnel: 'Profils et rôles',
-  pointage: 'Arrivées, départs et historique par magasin',
-  analytique:
-    'Périodes, top produits, heures de pointe, marges, exports CSV / Excel / PDF',
-  integrations: 'Marketplace, API partenaires, app mobile gérant',
-  parametres:
-    'Magasin, terminal, caisse, cuisine, tables, périphériques et modules',
-  network: 'Stocks par site, transferts, vue consolidée gérant',
-  subscription: 'Plan, essai gratuit, facturation et paiements récurrents',
+  dash: 'Ouvrez un module pour continuer',
+  caisse: 'Encaissement, panier et TVA',
+  catalogue: 'Produits, prix et codes-barres',
+  stocks: 'Niveaux, alertes et inventaire manuel',
+  comptabilite: 'Journaux HT/TVA et exports',
+  rh: 'Demandes et validations manager',
+  crm: 'Fiches clients et relances',
+  tables: 'Occupation et réservations',
+  promotions: 'Codes promo et seuils panier',
+  loyalty: 'Points et historique clients',
+  kitchen: 'Tickets cuisine et préparation',
+  ticketsFactures: 'Tickets, factures et règlements',
+  onlineOrders: 'Validation des commandes web',
+  journal: 'Synthèse du jour et reçus',
+  personnel: 'Profils, rôles et accès',
+  pointage: 'Arrivées et départs par magasin',
+  analytique: 'CA, top produits et marges',
+  integrations: 'Partenaires et marketplaces',
+  parametres: 'Magasin, terminal et périphériques',
+  network: 'Sites, stocks et transferts',
+  achats: 'Fournisseurs, bons de commande et réceptions',
+  devis: 'Devis clients et conversion en vente',
+  sav: 'Atelier réparations et garanties',
+  credits: 'Encours clients, échéances et règlements',
+  inventairePhysique: 'Sessions de comptage et écarts de stock',
+  peremptions: 'Alertes DLC et destructions de lots',
+  livraisons: 'Livreurs, tournées et suivi des courses',
+  location: 'Location matériel, cautions et retours',
+  carte: 'Menu du jour et options de plats',
+  cadeaux: 'Cartes et bons cadeaux',
+  rdv: 'Agenda rendez-vous clients',
+  tarifs: 'Grilles tarifaires pro / multi-prix',
+  retoursFournisseur: 'Retours et avoirs fournisseurs',
+  production: 'Ordres de fabrication / fournée',
+  bl: 'Bons de livraison clients',
+  depenses: 'Dépenses magasin et trésorerie',
+  retoursClient: 'Retours, échanges et avoirs clients',
+  consignes: 'Cautions bouteilles / emballages consignés',
+  ordonnances: 'Registre des ordonnances et délivrances',
+  chantiers: 'Chantiers BTP, clients et suivi',
+  abonnements: 'Forfaits récurrents et échéances',
+  haccp: 'Températures, nettoyage et réceptions',
+  vip: 'Conciergerie, paliers et préférences clients',
+  commissions: 'Commissions vendeurs et règlements',
+  misesDeCote: 'Réservations articles et acomptes',
+  pertes: 'Casse, vols, erreurs et shrink',
+  allergenes: 'Fiches allergènes et traces',
+  evenements: 'Privatisations, traiteur et couverts',
+  reprises: 'Trade-in high-tech, IMEI et offres',
+  protocoles: 'Cures et séances de soins',
+  cave: 'Millésimes, stocks bouteilles et verre',
+  magistrales: 'Préparations magistrales sur ordonnance',
+}
+
+export type NavSection = {
+  title: string
+  items: {
+    id: NavViewId
+    label: string
+    badge?: 'lowStock'
+    /** Badges rupture + seuil (menu Stocks) */
+    stockBadges?: boolean
+  }[]
+}
+
+function navItem(
+  id: NavViewId,
+  extras?: { badge?: 'lowStock'; stockBadges?: boolean },
+): NavSection['items'][number] {
+  return { id, label: VIEW_LABELS[id], ...extras }
 }
 
 export type ViewAccent = {
@@ -84,17 +191,17 @@ export type ViewAccent = {
 }
 
 export const VIEW_ACCENTS: Record<NavViewId, ViewAccent> = {
-  caisse: {
-    icon: 'text-emerald-600 bg-emerald-50',
-    iconActive: 'text-emerald-700 bg-emerald-100',
-    labelActive: 'text-emerald-900',
-    chip: 'bg-emerald-100 text-emerald-800',
-  },
   dash: {
-    icon: 'text-sky-600 bg-sky-50',
-    iconActive: 'text-sky-700 bg-sky-100',
-    labelActive: 'text-sky-900',
-    chip: 'bg-sky-100 text-sky-800',
+    icon: 'text-[#0033aa] bg-[#e8eefa]',
+    iconActive: 'text-[#00257a] bg-[#d6e0f6]',
+    labelActive: 'text-[#001f66]',
+    chip: 'bg-[#e8eefa] text-[#0033aa]',
+  },
+  caisse: {
+    icon: 'text-[#0033aa] bg-[#e8eefa]',
+    iconActive: 'text-[#00257a] bg-[#d6e0f6]',
+    labelActive: 'text-[#001f66]',
+    chip: 'bg-[#e8eefa] text-[#0033aa]',
   },
   catalogue: {
     icon: 'text-indigo-600 bg-indigo-50',
@@ -204,84 +311,421 @@ export const VIEW_ACCENTS: Record<NavViewId, ViewAccent> = {
     labelActive: 'text-green-900',
     chip: 'bg-green-100 text-green-800',
   },
-  subscription: {
+  achats: {
+    icon: 'text-orange-600 bg-orange-50',
+    iconActive: 'text-orange-700 bg-orange-100',
+    labelActive: 'text-orange-900',
+    chip: 'bg-orange-100 text-orange-800',
+  },
+  devis: {
+    icon: 'text-sky-600 bg-sky-50',
+    iconActive: 'text-sky-700 bg-sky-100',
+    labelActive: 'text-sky-900',
+    chip: 'bg-sky-100 text-sky-800',
+  },
+  sav: {
+    icon: 'text-emerald-600 bg-emerald-50',
+    iconActive: 'text-emerald-700 bg-emerald-100',
+    labelActive: 'text-emerald-900',
+    chip: 'bg-emerald-100 text-emerald-800',
+  },
+  credits: {
+    icon: 'text-amber-600 bg-amber-50',
+    iconActive: 'text-amber-700 bg-amber-100',
+    labelActive: 'text-amber-900',
+    chip: 'bg-amber-100 text-amber-800',
+  },
+  inventairePhysique: {
+    icon: 'text-slate-600 bg-slate-50',
+    iconActive: 'text-slate-700 bg-slate-100',
+    labelActive: 'text-slate-900',
+    chip: 'bg-slate-100 text-slate-800',
+  },
+  peremptions: {
+    icon: 'text-rose-600 bg-rose-50',
+    iconActive: 'text-rose-700 bg-rose-100',
+    labelActive: 'text-rose-900',
+    chip: 'bg-rose-100 text-rose-800',
+  },
+  livraisons: {
+    icon: 'text-cyan-600 bg-cyan-50',
+    iconActive: 'text-cyan-700 bg-cyan-100',
+    labelActive: 'text-cyan-900',
+    chip: 'bg-cyan-100 text-cyan-800',
+  },
+  location: {
+    icon: 'text-teal-600 bg-teal-50',
+    iconActive: 'text-teal-700 bg-teal-100',
+    labelActive: 'text-teal-900',
+    chip: 'bg-teal-100 text-teal-800',
+  },
+  carte: {
+    icon: 'text-fuchsia-600 bg-fuchsia-50',
+    iconActive: 'text-fuchsia-700 bg-fuchsia-100',
+    labelActive: 'text-fuchsia-900',
+    chip: 'bg-fuchsia-100 text-fuchsia-800',
+  },
+  cadeaux: {
+    icon: 'text-pink-600 bg-pink-50',
+    iconActive: 'text-pink-700 bg-pink-100',
+    labelActive: 'text-pink-900',
+    chip: 'bg-pink-100 text-pink-800',
+  },
+  rdv: {
+    icon: 'text-violet-600 bg-violet-50',
+    iconActive: 'text-violet-700 bg-violet-100',
+    labelActive: 'text-violet-900',
+    chip: 'bg-violet-100 text-violet-800',
+  },
+  tarifs: {
     icon: 'text-blue-600 bg-blue-50',
     iconActive: 'text-blue-700 bg-blue-100',
     labelActive: 'text-blue-900',
     chip: 'bg-blue-100 text-blue-800',
   },
+  retoursFournisseur: {
+    icon: 'text-red-600 bg-red-50',
+    iconActive: 'text-red-700 bg-red-100',
+    labelActive: 'text-red-900',
+    chip: 'bg-red-100 text-red-800',
+  },
+  production: {
+    icon: 'text-yellow-700 bg-yellow-50',
+    iconActive: 'text-yellow-800 bg-yellow-100',
+    labelActive: 'text-yellow-950',
+    chip: 'bg-yellow-100 text-yellow-900',
+  },
+  bl: {
+    icon: 'text-indigo-600 bg-indigo-50',
+    iconActive: 'text-indigo-700 bg-indigo-100',
+    labelActive: 'text-indigo-900',
+    chip: 'bg-indigo-100 text-indigo-800',
+  },
+  depenses: {
+    icon: 'text-stone-600 bg-stone-50',
+    iconActive: 'text-stone-700 bg-stone-100',
+    labelActive: 'text-stone-900',
+    chip: 'bg-stone-100 text-stone-800',
+  },
+  retoursClient: {
+    icon: 'text-orange-600 bg-orange-50',
+    iconActive: 'text-orange-700 bg-orange-100',
+    labelActive: 'text-orange-900',
+    chip: 'bg-orange-100 text-orange-800',
+  },
+  consignes: {
+    icon: 'text-emerald-600 bg-emerald-50',
+    iconActive: 'text-emerald-700 bg-emerald-100',
+    labelActive: 'text-emerald-900',
+    chip: 'bg-emerald-100 text-emerald-800',
+  },
+  ordonnances: {
+    icon: 'text-sky-600 bg-sky-50',
+    iconActive: 'text-sky-700 bg-sky-100',
+    labelActive: 'text-sky-900',
+    chip: 'bg-sky-100 text-sky-800',
+  },
+  chantiers: {
+    icon: 'text-amber-700 bg-amber-50',
+    iconActive: 'text-amber-800 bg-amber-100',
+    labelActive: 'text-amber-950',
+    chip: 'bg-amber-100 text-amber-900',
+  },
+  abonnements: {
+    icon: 'text-violet-600 bg-violet-50',
+    iconActive: 'text-violet-700 bg-violet-100',
+    labelActive: 'text-violet-900',
+    chip: 'bg-violet-100 text-violet-800',
+  },
+  haccp: {
+    icon: 'text-lime-700 bg-lime-50',
+    iconActive: 'text-lime-800 bg-lime-100',
+    labelActive: 'text-lime-950',
+    chip: 'bg-lime-100 text-lime-900',
+  },
+  vip: {
+    icon: 'text-yellow-700 bg-yellow-50',
+    iconActive: 'text-yellow-800 bg-yellow-100',
+    labelActive: 'text-yellow-950',
+    chip: 'bg-yellow-100 text-yellow-900',
+  },
+  commissions: {
+    icon: 'text-emerald-600 bg-emerald-50',
+    iconActive: 'text-emerald-700 bg-emerald-100',
+    labelActive: 'text-emerald-900',
+    chip: 'bg-emerald-100 text-emerald-800',
+  },
+  misesDeCote: {
+    icon: 'text-indigo-600 bg-indigo-50',
+    iconActive: 'text-indigo-700 bg-indigo-100',
+    labelActive: 'text-indigo-900',
+    chip: 'bg-indigo-100 text-indigo-800',
+  },
+  pertes: {
+    icon: 'text-rose-600 bg-rose-50',
+    iconActive: 'text-rose-700 bg-rose-100',
+    labelActive: 'text-rose-900',
+    chip: 'bg-rose-100 text-rose-800',
+  },
+  allergenes: {
+    icon: 'text-orange-600 bg-orange-50',
+    iconActive: 'text-orange-700 bg-orange-100',
+    labelActive: 'text-orange-900',
+    chip: 'bg-orange-100 text-orange-800',
+  },
+  evenements: {
+    icon: 'text-fuchsia-600 bg-fuchsia-50',
+    iconActive: 'text-fuchsia-700 bg-fuchsia-100',
+    labelActive: 'text-fuchsia-900',
+    chip: 'bg-fuchsia-100 text-fuchsia-800',
+  },
+  reprises: {
+    icon: 'text-sky-600 bg-sky-50',
+    iconActive: 'text-sky-700 bg-sky-100',
+    labelActive: 'text-sky-900',
+    chip: 'bg-sky-100 text-sky-800',
+  },
+  protocoles: {
+    icon: 'text-pink-600 bg-pink-50',
+    iconActive: 'text-pink-700 bg-pink-100',
+    labelActive: 'text-pink-900',
+    chip: 'bg-pink-100 text-pink-800',
+  },
+  cave: {
+    icon: 'text-red-800 bg-red-50',
+    iconActive: 'text-red-900 bg-red-100',
+    labelActive: 'text-red-950',
+    chip: 'bg-red-100 text-red-900',
+  },
+  magistrales: {
+    icon: 'text-cyan-700 bg-cyan-50',
+    iconActive: 'text-cyan-800 bg-cyan-100',
+    labelActive: 'text-cyan-950',
+    chip: 'bg-cyan-100 text-cyan-900',
+  },
 }
 
-export type NavSection = {
-  title: string
-  items: {
-    id: NavViewId
-    label: string
-    badge?: 'lowStock'
-    /** Badges rupture + seuil (menu Stocks) */
-    stockBadges?: boolean
-  }[]
+const NAV_SECTION_VENTES: NavSection = {
+  title: 'Ventes',
+  items: [navItem('caisse')],
+}
+
+const NAV_SECTION_GESTION: NavSection = {
+  title: 'Gestion',
+  items: [
+    navItem('catalogue'),
+    navItem('stocks', { stockBadges: true }),
+    navItem('comptabilite'),
+    navItem('rh'),
+    navItem('crm'),
+    navItem('tables'),
+    navItem('promotions'),
+    navItem('loyalty'),
+    navItem('kitchen'),
+    navItem('ticketsFactures'),
+    navItem('onlineOrders'),
+    navItem('network'),
+    navItem('journal'),
+  ],
+}
+
+/** Modules métier séparés (pas mélangés dans Gestion). */
+const NAV_SECTION_DEVIS: NavSection = {
+  title: 'Devis',
+  items: [navItem('devis')],
+}
+
+const NAV_SECTION_ACHATS: NavSection = {
+  title: 'Achats',
+  items: [navItem('achats')],
+}
+
+const NAV_SECTION_SAV: NavSection = {
+  title: 'SAV',
+  items: [navItem('sav')],
+}
+
+const NAV_SECTION_CREDITS: NavSection = {
+  title: 'Crédits',
+  items: [navItem('credits')],
+}
+
+const NAV_SECTION_COMPTAGE: NavSection = {
+  title: 'Comptage',
+  items: [navItem('inventairePhysique')],
+}
+
+const NAV_SECTION_PEREMPTIONS: NavSection = {
+  title: 'Péremptions',
+  items: [navItem('peremptions')],
+}
+
+const NAV_SECTION_LIVRAISONS: NavSection = {
+  title: 'Livraisons',
+  items: [navItem('livraisons')],
+}
+
+const NAV_SECTION_LOCATION: NavSection = {
+  title: 'Location',
+  items: [navItem('location')],
+}
+
+const NAV_SECTION_CARTE: NavSection = {
+  title: 'Carte',
+  items: [navItem('carte')],
+}
+
+const NAV_SECTION_AVANCE: NavSection = {
+  title: 'Avancé',
+  items: [
+    navItem('cadeaux'),
+    navItem('rdv'),
+    navItem('tarifs'),
+    navItem('retoursFournisseur'),
+    navItem('production'),
+    navItem('bl'),
+    navItem('depenses'),
+  ],
+}
+
+const NAV_SECTION_RETOURS_CLIENT: NavSection = {
+  title: 'Retours client',
+  items: [navItem('retoursClient')],
+}
+
+const NAV_SECTION_CONSIGNES: NavSection = {
+  title: 'Consignes',
+  items: [navItem('consignes')],
+}
+
+const NAV_SECTION_ORDONNANCES: NavSection = {
+  title: 'Ordonnances',
+  items: [navItem('ordonnances')],
+}
+
+const NAV_SECTION_CHANTIERS: NavSection = {
+  title: 'Chantiers',
+  items: [navItem('chantiers')],
+}
+
+const NAV_SECTION_ABONNEMENTS: NavSection = {
+  title: 'Abonnements',
+  items: [navItem('abonnements')],
+}
+
+const NAV_SECTION_HACCP: NavSection = {
+  title: 'Hygiène',
+  items: [navItem('haccp')],
+}
+
+const NAV_SECTION_VIP: NavSection = {
+  title: 'VIP',
+  items: [navItem('vip')],
+}
+
+const NAV_SECTION_COMMISSIONS: NavSection = {
+  title: 'Commissions',
+  items: [navItem('commissions')],
+}
+
+const NAV_SECTION_MISES: NavSection = {
+  title: 'Mises de côté',
+  items: [navItem('misesDeCote')],
+}
+
+const NAV_SECTION_PERTES: NavSection = {
+  title: 'Pertes',
+  items: [navItem('pertes')],
+}
+
+const NAV_SECTION_ALLERGENES: NavSection = {
+  title: 'Allergènes',
+  items: [navItem('allergenes')],
+}
+
+const NAV_SECTION_EVENEMENTS: NavSection = {
+  title: 'Événements',
+  items: [navItem('evenements')],
+}
+
+const NAV_SECTION_REPRISES: NavSection = {
+  title: 'Reprises',
+  items: [navItem('reprises')],
+}
+
+const NAV_SECTION_PROTOCOLES: NavSection = {
+  title: 'Protocoles',
+  items: [navItem('protocoles')],
+}
+
+const NAV_SECTION_CAVE: NavSection = {
+  title: 'Cave',
+  items: [navItem('cave')],
+}
+
+const NAV_SECTION_MAGISTRALES: NavSection = {
+  title: 'Magistrales',
+  items: [navItem('magistrales')],
+}
+
+const NAV_SECTION_ORGANISATION: NavSection = {
+  title: 'Organisation',
+  items: [navItem('personnel'), navItem('pointage'), navItem('analytique')],
+}
+
+const NAV_SECTION_SYSTEME: NavSection = {
+  title: 'Système',
+  items: [navItem('parametres'), navItem('integrations')],
 }
 
 export const NAV_SECTIONS: readonly NavSection[] = [
-  {
-    title: 'Ventes',
-    items: [
-      { id: 'caisse', label: 'Caisse' },
-      { id: 'dash', label: 'Tableau de bord' },
-    ],
-  },
-  {
-    title: 'Gestion',
-    items: [
-      { id: 'catalogue', label: 'Catalogue' },
-      { id: 'stocks', label: 'Stocks', stockBadges: true },
-      { id: 'comptabilite', label: 'Comptabilité' },
-      { id: 'rh', label: 'Gestion RH' },
-      { id: 'crm', label: 'CRM clients' },
-      { id: 'tables', label: 'Gestion des tables' },
-      { id: 'promotions', label: 'Promotions' },
-      { id: 'loyalty', label: 'Programme de fidélité' },
-      { id: 'kitchen', label: 'Cuisine' },
-      { id: 'ticketsFactures', label: 'Tickets & factures' },
-      { id: 'onlineOrders', label: 'Commandes en ligne' },
-      { id: 'network', label: 'Multi-magasins' },
-      { id: 'journal', label: 'Rapport journalier' },
-    ],
-  },
-  {
-    title: 'Équipe',
-    items: [
-      { id: 'personnel', label: 'Personnel' },
-      { id: 'pointage', label: 'Pointage' },
-      { id: 'analytique', label: 'Analytique' },
-    ],
-  },
-  {
-    title: 'Écosystème',
-    items: [
-      { id: 'parametres', label: 'Paramètres' },
-      { id: 'integrations', label: 'Intégrations' },
-      { id: 'subscription', label: 'Abonnement' },
-    ],
-  },
-] as const
+  NAV_SECTION_VENTES,
+  NAV_SECTION_GESTION,
+  NAV_SECTION_DEVIS,
+  NAV_SECTION_ACHATS,
+  NAV_SECTION_SAV,
+  NAV_SECTION_CREDITS,
+  NAV_SECTION_COMPTAGE,
+  NAV_SECTION_PEREMPTIONS,
+  NAV_SECTION_LIVRAISONS,
+  NAV_SECTION_LOCATION,
+  NAV_SECTION_CARTE,
+  NAV_SECTION_AVANCE,
+  NAV_SECTION_RETOURS_CLIENT,
+  NAV_SECTION_CONSIGNES,
+  NAV_SECTION_ORDONNANCES,
+  NAV_SECTION_CHANTIERS,
+  NAV_SECTION_ABONNEMENTS,
+  NAV_SECTION_HACCP,
+  NAV_SECTION_VIP,
+  NAV_SECTION_COMMISSIONS,
+  NAV_SECTION_MISES,
+  NAV_SECTION_PERTES,
+  NAV_SECTION_ALLERGENES,
+  NAV_SECTION_EVENEMENTS,
+  NAV_SECTION_REPRISES,
+  NAV_SECTION_PROTOCOLES,
+  NAV_SECTION_CAVE,
+  NAV_SECTION_MAGISTRALES,
+  NAV_SECTION_ORGANISATION,
+  NAV_SECTION_SYSTEME,
+]
 
-/** Caissier : caisse, commandes web (reçus), catalogue lecture, multi-magasins (vue), rapport du jour. */
+/** Caissier : caisse, commandes web (reçus), cuisine, journal du jour. */
 const NAV_SECTIONS_CAISSIER: readonly NavSection[] = [
   {
     title: 'Ventes',
     items: [
-      { id: 'caisse', label: 'Caisse' },
-      { id: 'kitchen', label: 'Cuisine' },
-      { id: 'ticketsFactures', label: 'Tickets & factures' },
-      { id: 'onlineOrders', label: 'Commandes en ligne' },
-      { id: 'journal', label: 'Rapport journalier' },
+      navItem('caisse'),
+      navItem('kitchen'),
+      navItem('ticketsFactures'),
+      navItem('onlineOrders'),
+      navItem('journal'),
     ],
   },
   {
     title: 'Temps',
-    items: [{ id: 'pointage', label: 'Pointage' }],
+    items: [navItem('pointage')],
   },
 ]
 
@@ -289,33 +733,53 @@ const NAV_SECTIONS_CAISSIER: readonly NavSection[] = [
 const NAV_SECTIONS_CUISINIER: readonly NavSection[] = [
   {
     title: 'Production',
-    items: [{ id: 'kitchen', label: 'Cuisine' }],
+    items: [navItem('kitchen')],
   },
   {
     title: 'Temps',
-    items: [{ id: 'pointage', label: 'Pointage' }],
+    items: [navItem('pointage')],
   },
 ]
 
 /** Gérant : comme l’admin sauf personnel, création de magasins (onglet) et intégrations. */
 const NAV_SECTIONS_GERANT: readonly NavSection[] = [
-  NAV_SECTIONS[0],
-  NAV_SECTIONS[1],
+  NAV_SECTION_VENTES,
+  NAV_SECTION_GESTION,
+  NAV_SECTION_DEVIS,
+  NAV_SECTION_ACHATS,
+  NAV_SECTION_SAV,
+  NAV_SECTION_CREDITS,
+  NAV_SECTION_COMPTAGE,
+  NAV_SECTION_PEREMPTIONS,
+  NAV_SECTION_LIVRAISONS,
+  NAV_SECTION_LOCATION,
+  NAV_SECTION_CARTE,
+  NAV_SECTION_AVANCE,
+  NAV_SECTION_RETOURS_CLIENT,
+  NAV_SECTION_CONSIGNES,
+  NAV_SECTION_ORDONNANCES,
+  NAV_SECTION_CHANTIERS,
+  NAV_SECTION_ABONNEMENTS,
+  NAV_SECTION_HACCP,
+  NAV_SECTION_VIP,
+  NAV_SECTION_COMMISSIONS,
+  NAV_SECTION_MISES,
+  NAV_SECTION_PERTES,
+  NAV_SECTION_ALLERGENES,
+  NAV_SECTION_EVENEMENTS,
+  NAV_SECTION_REPRISES,
+  NAV_SECTION_PROTOCOLES,
+  NAV_SECTION_CAVE,
+  NAV_SECTION_MAGISTRALES,
   {
-    title: 'Équipe',
-    items: [
-      { id: 'pointage', label: 'Pointage' },
-      { id: 'analytique', label: 'Analytique' },
-    ],
+    title: 'Organisation',
+    items: [navItem('pointage'), navItem('analytique')],
   },
   {
-    title: 'Configuration',
-    items: [
-      { id: 'parametres', label: 'Paramètres' },
-      { id: 'subscription', label: 'Abonnement' },
-    ],
+    title: 'Système',
+    items: [navItem('parametres')],
   },
-] as const
+]
 
 export function navSectionsForRole(role: UserRole): readonly NavSection[] {
   switch (role) {

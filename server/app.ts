@@ -15,7 +15,7 @@ import {
   handleWaveWebhook,
   mobileMoneyRouter,
 } from './routes/mobileMoney.js'
-import { platformAdminRouter } from './routes/platformAdmin.js'
+import { platformPublicRouter } from './routes/siteBranding.js'
 import { uploadsRouter } from './routes/uploads.js'
 import { syncRouter } from './routes/sync.js'
 import { staffRouter } from './routes/staff.js'
@@ -80,12 +80,12 @@ app.use(
     '/api/billing/register',
     '/api/billing/login',
     '/api/billing/attach',
-    '/api/platform-admin/auth',
     '/api/webhooks',
   ],
   sensitiveLimiter,
 )
-app.use(['/api/caisseci/sync', '/api/caisseci/sync/pull'], syncLimiter)
+// Limiteur sync : chemins /api/nora/*.
+app.use(['/api/nora/sync', '/api/nora/sync/pull'], syncLimiter)
 app.post(
   '/api/billing/webhook',
   express.raw({ type: 'application/json' }),
@@ -143,5 +143,5 @@ app.use('/api', webhookRouter)
 app.use('/api', billingRouter)
 app.use('/api', storefrontRouter)
 app.use('/api', mobileMoneyRouter)
-app.use('/api', platformAdminRouter)
+app.use('/api', platformPublicRouter)
 app.use('/api', uploadsRouter)

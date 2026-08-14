@@ -1,13 +1,14 @@
 import { test, expect } from '@playwright/test'
 
-test.describe('Site commercial', () => {
-  test('affiche la page d’accueil', async ({ page }) => {
+test.describe('App Nora', () => {
+  test('redirige l’accueil vers le staff', async ({ page }) => {
     await page.goto('/')
-    await expect(page).toHaveTitle(/Caisse\s*CI/i)
+    await expect(page).toHaveURL(/\/staff/)
+    await expect(page).toHaveTitle(/Nora/i)
   })
 
-  test('navigue vers les tarifs', async ({ page }) => {
-    await page.goto('/tarifs')
+  test('affiche l’écran staff', async ({ page }) => {
+    await page.goto('/staff')
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   })
 })

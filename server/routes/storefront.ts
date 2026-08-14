@@ -10,7 +10,7 @@ import {
 import { ensurePaymentConfigReady } from '../lib/paymentProviderSettings.js'
 import { prisma } from '../lib/prisma.js'
 import { requireActiveOrg } from '../lib/orgAuth.js'
-import { publicAppUrl } from '../lib/stripe.js'
+import { publicAppUrl } from '../lib/appUrls.js'
 import {
   markStorefrontOrderPaid,
   markStorefrontOrderPaymentRefused,

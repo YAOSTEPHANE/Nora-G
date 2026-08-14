@@ -1,11 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  BUSINESS_DOMAINS,
+  type BusinessDomain,
+} from '../lib/businessDomain'
+import {
   getAppSettings,
   resetAppSettings,
   saveAppSettings,
   type AppSettings,
 } from '../lib/appSettings'
-import { ensureSeed, wipeLocalBusinessData } from '../db/db'
+import { VIEW_LABELS } from '../navigation'
+import {
+  ensureAllStoreStockRows,
+  ensureDomainProductCategories,
+  ensureDomainSampleProductsIfEmpty,
+  ensureSeed,
+  loadTestData,
+  migrateProductBusinessDomains,
+  syncProductCategoriesFromProducts,
+  wipeLocalBusinessData,
+} from '../db/db'
 import {
   setAppliedLocalWipeAt,
   setStoredForceClientWipeAt,
@@ -18,13 +32,11 @@ import {
   getKitchenStationDemo,
   isComptaModuleDemoOn,
   isDeliveryModuleDemoOn,
-  isEcomModuleDemoOn,
   isKitchenModuleDemoOn,
   setComptaModuleDemo,
   setDeliveryModuleDemo,
   setDeliveryProviderDemo,
   setDeviceConnectivityDemo,
-  setEcomModuleDemo,
   setKitchenModuleDemo,
   setKitchenStationDemo,
   type DeviceConnectivityDemo,
@@ -67,7 +79,6 @@ type Props = {
   canResetData?: boolean
   organizationName?: string
   onOpenIntegrations?: () => void
-  onOpenSubscription?: () => void
 }
 
 export function ParametresView({
@@ -77,7 +88,6 @@ export function ParametresView({
   canResetData = false,
   organizationName = '',
   onOpenIntegrations,
-  onOpenSubscription,
 }: Props) {
   const toast = useToast()
   const [tab, setTab] = useState<TabId>('general')
@@ -91,7 +101,7 @@ export function ParametresView({
   const [comptaOn, setComptaOn] = useState(() => isComptaModuleDemoOn())
   const [resetConfirmName, setResetConfirmName] = useState('')
   const [resetBusy, setResetBusy] = useState(false)
-  const [ecomOn, setEcomOn] = useState(() => isEcomModuleDemoOn())
+  const [testDataBusy, setTestDataBusy] = useState(false)
   const [deliveryOn, setDeliveryOn] = useState(() => isDeliveryModuleDemoOn())
   const [kitchenOn, setKitchenOn] = useState(() => isKitchenModuleDemoOn())
   const [printerMeta, setPrinterMeta] = useState<ToplinkPrinterMeta>(() =>
@@ -121,8 +131,8 @@ export function ParametresView({
 
   useEffect(() => {
     const reload = () => setSettings(getAppSettings())
-    window.addEventListener('caisseci-app-settings-changed', reload)
-    return () => window.removeEventListener('caisseci-app-settings-changed', reload)
+    window.addEventListener('nora-app-settings-changed', reload)
+    return () => window.removeEventListener('nora-app-settings-changed', reload)
   }, [])
 
   const patchSettings = useCallback((patch: Partial<AppSettings>) => {
@@ -192,11 +202,33 @@ export function ParametresView({
     }
   }, [canConfirmReset, canResetData, resetConfirmName, toast])
 
+  const handleLoadTestData = useCallback(async () => {
+    setTestDataBusy(true)
+    try {
+      await loadTestData()
+      toast.success(
+        'Données test chargées',
+        '18 produits, stocks, cuisine, tables, promos, fidélité et ventes d’exemple.',
+      )
+      window.setTimeout(() => {
+        window.location.reload()
+      }, 500)
+    } catch (err) {
+      toast.error(
+        'Chargement impossible',
+        err instanceof Error ? err.message : 'Réessayez plus tard.',
+      )
+    } finally {
+      setTestDataBusy(false)
+    }
+  }, [toast])
+
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
       <PageHeader
+        icon={<IconSettings />}
         eyebrow="Configuration"
-        title="Paramètres"
+        title="Réglages"
         subtitle="Magasin, caisse, cuisine, tables et périphériques de ce poste"
         actions={
           <div className="flex flex-wrap gap-2">
@@ -284,6 +316,27 @@ export function ParametresView({
             </CardContent>
           </Card>
 
+          <Card className="lg:col-span-2">
+            <CardContent className="space-y-3">
+              <h3 className="text-[14px] font-semibold text-ink">
+                Données de test
+              </h3>
+              <p className="text-[12px] text-mute">
+                Charge un catalogue d’exemple (produits, stocks, magasin annexe,
+                cuisine, tables, codes promo, clients fidélité et ventes) pour
+                explorer l’application.
+              </p>
+              <Button
+                variant="accent"
+                size="sm"
+                disabled={testDataBusy}
+                onClick={() => void handleLoadTestData()}
+              >
+                {testDataBusy ? 'Chargement…' : 'Charger les données test'}
+              </Button>
+            </CardContent>
+          </Card>
+
           {canResetData ? (
             <Card className="lg:col-span-2 border-rose-200 bg-rose-50/40">
               <CardContent className="space-y-3">
@@ -293,8 +346,7 @@ export function ParametresView({
                 <p className="text-[12px] text-rose-900/80">
                   Réinitialise catalogue, stocks, ventes, comptabilité, tickets,
                   promotions, commandes boutique, personnel caisse et sync.
-                  Conservés : compte (email / mot de passe), licence et
-                  abonnement.
+                  Conservés : compte (email / mot de passe) et licence.
                 </p>
                 <Field
                   label={`Tapez « ${organizationName} » pour confirmer`}
@@ -511,7 +563,7 @@ export function ParametresView({
 
               {!webSerialOk ? (
                 <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
-                  Web Serial indisponible sur ce navigateur. Ouvrez Caisse CI dans
+                  Web Serial indisponible sur ce navigateur. Ouvrez Nora dans
                   Chrome / Edge, ou imprimez via le dialogue Windows (pilote
                   « Printer POS-80 »).
                 </p>
@@ -716,6 +768,93 @@ export function ParametresView({
 
       {tab === 'modules' ? (
         <div className="grid gap-3 lg:grid-cols-2">
+          <Card className="lg:col-span-2">
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-[13px] font-semibold text-ink">
+                  Domaine d’activité
+                </p>
+                <p className="mt-1 text-[12px] text-ink-muted">
+                  Chaque domaine a ses modules, ses catégories et son catalogue
+                  (ex. pharmacie ≠ restaurant). Le menu et les produits
+                  s’adaptent.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {BUSINESS_DOMAINS.map((domain) => {
+                  const selected = settings.businessDomain === domain.id
+                  return (
+                    <button
+                      key={domain.id}
+                      type="button"
+                      onClick={() => {
+                        void (async () => {
+                          const prev = settings.businessDomain
+                          const next = domain.id as BusinessDomain
+                          patchSettings({ businessDomain: next })
+                          if (
+                            next === 'restaurant' ||
+                            next === 'bakery' ||
+                            next === 'hotel'
+                          ) {
+                            setKitchenModuleDemo(true)
+                            setKitchenOn(true)
+                          } else if (
+                            prev === 'restaurant' ||
+                            prev === 'bakery' ||
+                            prev === 'hotel'
+                          ) {
+                            setKitchenModuleDemo(false)
+                            setKitchenOn(false)
+                          }
+                          try {
+                            await migrateProductBusinessDomains()
+                            await ensureDomainProductCategories(next)
+                            const seeded =
+                              await ensureDomainSampleProductsIfEmpty(next)
+                            await ensureAllStoreStockRows()
+                            await syncProductCategoriesFromProducts()
+                            toast.success(
+                              'Domaine mis à jour',
+                              seeded > 0
+                                ? `${domain.label} — ${seeded} articles d’exemple ajoutés`
+                                : domain.label,
+                            )
+                          } catch (e) {
+                            toast.error(
+                              'Domaine enregistré, catalogue incomplet',
+                              e instanceof Error ? e.message : 'Erreur locale',
+                            )
+                          }
+                        })()
+                      }}
+                      className={
+                        selected
+                          ? 'rounded-xl border-2 border-[#0033aa] bg-[#e8eefa] px-3 py-3 text-left'
+                          : 'rounded-xl border border-border/70 bg-white px-3 py-3 text-left hover:border-[#0033aa]/40'
+                      }
+                    >
+                      <span className="block text-[13px] font-semibold text-ink">
+                        {domain.label}
+                      </span>
+                      <span className="mt-1 block text-[11px] leading-snug text-ink-muted">
+                        {domain.description}
+                      </span>
+                      {domain.extraModules.length > 0 ? (
+                        <span className="mt-2 block text-[10px] font-medium uppercase tracking-wide text-[#0033aa]">
+                          +{' '}
+                          {domain.extraModules
+                            .map((id) => VIEW_LABELS[id])
+                            .join(' · ')}
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
           {(
             [
               {
@@ -724,14 +863,6 @@ export function ParametresView({
                 onChange: (v: boolean) => {
                   setKitchenModuleDemo(v)
                   setKitchenOn(v)
-                },
-              },
-              {
-                label: 'Boutique en ligne',
-                checked: ecomOn,
-                onChange: (v: boolean) => {
-                  setEcomModuleDemo(v)
-                  setEcomOn(v)
                 },
               },
               {
@@ -774,23 +905,7 @@ export function ParametresView({
                   </p>
                 </div>
                 <Button variant="secondary" onClick={onOpenIntegrations}>
-                  Ouvrir Intégrations
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {onOpenSubscription ? (
-            <Card className="lg:col-span-2">
-              <CardContent className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-[13px] font-semibold text-ink">Abonnement & SMS</p>
-                  <p className="text-[12px] text-ink-subtle">
-                    Plan, facturation et rappels SMS avant expiration.
-                  </p>
-                </div>
-                <Button variant="secondary" onClick={onOpenSubscription}>
-                  Gérer l’abonnement
+                  Ouvrir Connexions
                 </Button>
               </CardContent>
             </Card>

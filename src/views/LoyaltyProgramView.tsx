@@ -5,7 +5,9 @@ import { Button } from '../ui/Button'
 import { Card, CardContent } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
 import { Field, Input } from '../ui/Input'
+import { Kpi } from '../ui/Kpi'
 import { PageHeader } from '../ui/PageHeader'
+import { IconStar, IconUser } from '../ui/icons'
 import { useToast } from '../ui/Toast'
 
 type Props = {
@@ -33,8 +35,13 @@ export function LoyaltyProgramView({ canManageLoyalty }: Props) {
   const [adjustPoints, setAdjustPoints] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const visibleCustomers = useMemo(
+    () => customers.filter((c) => !c.archived),
+    [customers],
+  )
+
   const stats = useMemo(() => {
-    return customers.reduce(
+    return visibleCustomers.reduce(
       (acc, c) => {
         acc.totalCustomers += 1
         acc.totalPoints += c.points
@@ -42,7 +49,18 @@ export function LoyaltyProgramView({ canManageLoyalty }: Props) {
       },
       { totalCustomers: 0, totalPoints: 0 },
     )
-  }, [customers])
+  }, [visibleCustomers])
+
+  const archiveCustomer = async (id: string, archived: boolean) => {
+    const row = customers.find((c) => c.id === id)
+    if (!row) return
+    await db.loyaltyCustomers.put({
+      ...row,
+      archived,
+      updatedAt: Date.now(),
+    })
+    toast.success(archived ? 'Client archivé' : 'Client réactivé', row.phone)
+  }
 
   const handleAdjust = async (): Promise<void> => {
     const p = normalizePhone(phone)
@@ -70,6 +88,7 @@ export function LoyaltyProgramView({ canManageLoyalty }: Props) {
         visitCount: existing?.visitCount ?? 0,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
+        archived: existing?.archived,
       })
       await db.loyaltyTransactions.add({
         id: crypto.randomUUID(),
@@ -87,25 +106,28 @@ export function LoyaltyProgramView({ canManageLoyalty }: Props) {
   }
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
       <PageHeader
+        icon={<IconStar />}
         eyebrow="CRM"
-        title="Programme de fidélité"
+        title="Fidélité"
         subtitle="Gestion des clients, points cumulés et historique des mouvements"
       />
 
-      <Card>
-        <CardContent className="grid gap-2 sm:grid-cols-2">
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
-            <p className="text-[11px] text-zinc-500">Clients inscrits</p>
-            <p className="text-lg font-bold text-zinc-900">{stats.totalCustomers}</p>
-          </div>
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-            <p className="text-[11px] text-emerald-700">Points en circulation</p>
-            <p className="text-lg font-bold text-emerald-900">{stats.totalPoints}</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Kpi
+          label="Clients inscrits"
+          value={String(stats.totalCustomers)}
+          tone="accent"
+          icon={<IconUser />}
+        />
+        <Kpi
+          label="Points en circulation"
+          value={String(stats.totalPoints)}
+          tone="violet"
+          icon={<IconStar />}
+        />
+      </div>
 
       {canManageLoyalty ? (
         <Card>
@@ -132,14 +154,14 @@ export function LoyaltyProgramView({ canManageLoyalty }: Props) {
         </Card>
       ) : null}
 
-      {customers.length === 0 ? (
+      {visibleCustomers.length === 0 ? (
         <EmptyState
           title="Aucun client fidélité"
           description="Les clients apparaîtront ici après la première vente fidélisée."
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {customers.slice(0, 24).map((c) => (
+          {visibleCustomers.slice(0, 24).map((c) => (
             <Card key={c.id}>
               <CardContent className="space-y-1">
                 <p className="font-mono text-[13px] font-semibold text-zinc-900">{c.phone}</p>
@@ -148,6 +170,15 @@ export function LoyaltyProgramView({ canManageLoyalty }: Props) {
                   <strong>{c.points}</strong> points
                 </p>
                 <p className="text-[11px] text-zinc-500">Visites: {c.visitCount}</p>
+                {canManageLoyalty ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void archiveCustomer(c.id, true)}
+                  >
+                    Archiver
+                  </Button>
+                ) : null}
               </CardContent>
             </Card>
           ))}

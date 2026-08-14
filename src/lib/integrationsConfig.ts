@@ -1,24 +1,24 @@
-/** Clés localStorage pour la démo « intégrations » (sans backend). */
+﻿/** Clés localStorage pour la démo « intégrations » (sans backend). */
 import {
   getStoredForceClientWipeAt,
   setStoredForceClientWipeAt,
 } from './clientDataWipe'
 
-const KEY_API = 'caisseci-demo-partner-api-key'
-const KEY_COMPTA = 'caisseci-module-compta-demo'
-const KEY_ECOM = 'caisseci-module-ecom-demo'
-const KEY_DELIVERY = 'caisseci-module-delivery-demo'
-const KEY_DELIVERY_PROVIDER = 'caisseci-delivery-provider'
-const KEY_DELIVERY_WEBHOOK = 'caisseci-delivery-webhook-url'
-const KEY_KITCHEN = 'caisseci-module-kitchen-demo'
-const KEY_KITCHEN_STATION = 'caisseci-kitchen-station'
-const KEY_ONLINE_PLATFORMS = 'caisseci-online-platforms'
-const KEY_ONLINE_SYNC_MODE = 'caisseci-online-sync-mode'
-const KEY_DEVICE_ORDER_TERMINALS = 'caisseci-device-order-terminals'
-const KEY_DEVICE_RECEIPT_PRINTERS = 'caisseci-device-receipt-printers'
-const KEY_DEVICE_KDS_SCREENS = 'caisseci-device-kds-screens'
-const KEY_DEVICE_CASH_DRAWER = 'caisseci-device-cash-drawer'
-const KEY_DEVICE_PAYMENT_TERMINALS = 'caisseci-device-payment-terminals'
+const KEY_API = 'nora-demo-partner-api-key'
+const KEY_COMPTA = 'nora-module-compta-demo'
+const KEY_ECOM = 'nora-module-ecom-demo'
+const KEY_DELIVERY = 'nora-module-delivery-demo'
+const KEY_DELIVERY_PROVIDER = 'nora-delivery-provider'
+const KEY_DELIVERY_WEBHOOK = 'nora-delivery-webhook-url'
+const KEY_KITCHEN = 'nora-module-kitchen-demo'
+const KEY_KITCHEN_STATION = 'nora-kitchen-station'
+const KEY_ONLINE_PLATFORMS = 'nora-online-platforms'
+const KEY_ONLINE_SYNC_MODE = 'nora-online-sync-mode'
+const KEY_DEVICE_ORDER_TERMINALS = 'nora-device-order-terminals'
+const KEY_DEVICE_RECEIPT_PRINTERS = 'nora-device-receipt-printers'
+const KEY_DEVICE_KDS_SCREENS = 'nora-device-kds-screens'
+const KEY_DEVICE_CASH_DRAWER = 'nora-device-cash-drawer'
+const KEY_DEVICE_PAYMENT_TERMINALS = 'nora-device-payment-terminals'
 
 export function getOrCreateDemoApiKey(): string {
   try {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { profileSecretMatches } from '../auth/permissions'
 import {
   DEFAULT_OWNER_PIN,
@@ -8,15 +8,25 @@ import {
   subscribeStaffProfiles,
 } from '../auth/profiles'
 import type { StaffAuthMethod, StaffProfile } from '../auth/types'
+import { BRAND_NAME } from '../brand'
+import { BrandLogo } from './BrandLogo'
 import { useSubscription } from '../context/SubscriptionContext'
 import { db } from '../db/db'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { BRAND_NAME } from '../brand'
-import { BrandLogo } from './BrandLogo'
 import { Button } from '../ui/Button'
+import { cn } from '../ui/cn'
 import { EmptyState } from '../ui/EmptyState'
 import { Field, Input } from '../ui/Input'
-import { IconArrowLeft, IconArrowRight, IconEye, IconEyeOff, IconShield } from '../ui/icons'
+import {
+  IconArrowLeft,
+  IconArrowRight,
+  IconCaisse,
+  IconEye,
+  IconEyeOff,
+  IconOffline,
+  IconShield,
+  IconStore,
+} from '../ui/icons'
 
 type Props = {
   onSuccess: (profile: StaffProfile, authMethod: StaffAuthMethod) => void
@@ -24,6 +34,12 @@ type Props = {
 
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_MS = 30_000
+
+const HIGHLIGHTS = [
+  { icon: IconCaisse, label: 'Caisse' },
+  { icon: IconOffline, label: 'Hors ligne' },
+  { icon: IconStore, label: 'Magasins' },
+] as const
 
 export function LoginScreen({ onSuccess }: Props) {
   const { organization } = useSubscription()
@@ -36,14 +52,20 @@ export function LoginScreen({ onSuccess }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [failedAttempts, setFailedAttempts] = useState(0)
   const [lockedUntil, setLockedUntil] = useState(0)
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState(() => new Date())
   const [bootstrappedOwner, setBootstrappedOwner] = useState(false)
-  const stores = useLiveQuery(() => db.stores.orderBy('sortOrder').toArray(), [], []) ?? []
+  const [shakeKey, setShakeKey] = useState(0)
+  const [stepKey, setStepKey] = useState(0)
+  const [cardReady, setCardReady] = useState(false)
+  const stores =
+    useLiveQuery(() => db.stores.orderBy('sortOrder').toArray(), [], []) ?? []
   const storeNameById = new Map(stores.map((store) => [store.id, store.name]))
 
   useEffect(() => {
     if (listActiveStaffProfiles().length > 0) return
-    const created = ensureOwnerAdminProfile(organization?.name ?? 'Administrateur')
+    const created = ensureOwnerAdminProfile(
+      organization?.name ?? 'Administrateur',
+    )
     if (created) {
       setBootstrappedOwner(true)
       setProfiles(listActiveStaffProfiles())
@@ -55,27 +77,50 @@ export function LoginScreen({ onSuccess }: Props) {
       const next = listActiveStaffProfiles()
       setProfiles(next)
       setSelected((prev) =>
-        prev ? next.find((p) => p.id === prev.id) ?? null : prev,
+        prev ? (next.find((p) => p.id === prev.id) ?? null) : prev,
       )
     })
   }, [])
 
   useEffect(() => {
-    if (lockedUntil <= Date.now()) return
-    const t = window.setInterval(() => setNow(Date.now()), 500)
+    const t = window.setInterval(() => setNow(new Date()), 1_000)
     return () => window.clearInterval(t)
-  }, [lockedUntil])
+  }, [])
+
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => setCardReady(true))
+    return () => window.cancelAnimationFrame(id)
+  }, [])
 
   const lockRemainingSec = useMemo(() => {
-    if (lockedUntil <= now) return 0
-    return Math.ceil((lockedUntil - now) / 1000)
+    if (lockedUntil <= now.getTime()) return 0
+    return Math.ceil((lockedUntil - now.getTime()) / 1000)
   }, [lockedUntil, now])
+
+  const timeLabel = useMemo(
+    () =>
+      now.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    [now],
+  )
+  const dateLabel = useMemo(
+    () =>
+      now.toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      }),
+    [now],
+  )
 
   const handleSelect = (p: StaffProfile) => {
     setSelected(p)
     setSecret('')
     setError(null)
     setShowSecret(false)
+    setStepKey((k) => k + 1)
   }
 
   const handleBack = () => {
@@ -83,26 +128,29 @@ export function LoginScreen({ onSuccess }: Props) {
     setSecret('')
     setError(null)
     setShowSecret(false)
+    setStepKey((k) => k + 1)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!selected) return
     if (lockRemainingSec > 0) {
-      setError(`Trop d’essais. Réessayez dans ${lockRemainingSec}s.`)
+      setError(`Trop d’essais. Patientez ${lockRemainingSec}s.`)
+      setShakeKey((k) => k + 1)
       return
     }
     const s = secret.trim()
     if (!profileSecretMatches(selected, s)) {
       const nextFails = failedAttempts + 1
       setFailedAttempts(nextFails)
+      setShakeKey((k) => k + 1)
       if (nextFails >= MAX_FAILED_ATTEMPTS) {
         setLockedUntil(Date.now() + LOCKOUT_MS)
         setFailedAttempts(0)
-        setError(`Trop d’essais. Compte verrouillé 30 secondes.`)
+        setError('Trop d’essais. Compte verrouillé 30 secondes.')
       } else {
         setError(
-          `PIN ou mot de passe incorrect (${MAX_FAILED_ATTEMPTS - nextFails} essai(s) restant(s))`,
+          `Code incorrect (${MAX_FAILED_ATTEMPTS - nextFails} essai(s) restant(s))`,
         )
       }
       return
@@ -117,176 +165,236 @@ export function LoginScreen({ onSuccess }: Props) {
   }
 
   return (
-    <div className="grid min-h-svh max-w-[100vw] grid-cols-1 overflow-x-clip lg:grid-cols-2">
-      <div className="relative hidden overflow-hidden bg-zinc-900 lg:block">
-        <div className="absolute inset-0 opacity-[0.06]">
-          <div className="absolute -left-1/4 top-1/4 h-[600px] w-[600px] rounded-full bg-emerald-400 blur-3xl" />
-          <div className="absolute -right-1/4 bottom-1/4 h-[600px] w-[600px] rounded-full bg-violet-400 blur-3xl" />
+    <div className="login-shell">
+      <div className="login-aurora" aria-hidden />
+      <div className="login-brand-orb login-brand-orb--a" aria-hidden />
+      <div className="login-brand-orb login-brand-orb--b" aria-hidden />
+      <div className="login-brand-orb login-brand-orb--c" aria-hidden />
+      <div className="login-brand-grid" aria-hidden />
+      <div className="login-sheen" aria-hidden />
+      <div className="login-particles" aria-hidden>
+        {Array.from({ length: 12 }, (_, i) => (
+          <span
+            key={i}
+            className="login-particle"
+            style={{ '--i': i } as CSSProperties}
+          />
+        ))}
+      </div>
+
+      <aside className="login-brand login-brand--left">
+        <div className="login-reveal login-reveal--1 flex items-center gap-3">
+          <BrandLogo size="md" ring="dark" className="login-logo-glow" />
+          <span className="select-none font-display text-[1.85rem] font-semibold tracking-[-0.04em] text-white">
+            {BRAND_NAME}
+          </span>
         </div>
-        <div className="relative flex h-full flex-col justify-between p-12 text-zinc-100">
-          <div className="flex items-center gap-3">
-            <BrandLogo size="lg" alt={BRAND_NAME} ring="dark" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-400/90">
-              Espace interne
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-              Le point de vente,
-              <br />
-              entièrement local et sécurisé.
-            </h2>
-            <p className="mt-4 max-w-md text-[14px] leading-relaxed text-zinc-400">
-              Caisse, stocks, paiements, rapport quotidien et synchronisation
-              cloud — fonctionne hors ligne.
-            </p>
-          </div>
-          <p className="text-[11px] text-zinc-500">
-            © {new Date().getFullYear()} · Démo locale · Vos données restent sur
-            cet appareil
+        <div className="login-reveal login-reveal--2 max-w-sm">
+          <p className="login-eyebrow text-[11px] font-semibold uppercase tracking-[0.22em] text-[#9bb8ff]">
+            Point de vente
+          </p>
+          <h2 className="mt-3 font-display text-[1.85rem] font-semibold leading-[1.12] tracking-[-0.038em] text-white xl:text-[2.15rem]">
+            <span className="login-headline-line">Bonjour.</span>
+            <br />
+            <span className="login-headline-line login-headline-line--delay">
+              On ouvre la journée.
+            </span>
+          </h2>
+          <p className="mt-4 text-[14px] leading-relaxed text-white/70">
+            Identifiez-vous pour encaisser, suivre le stock et piloter le
+            magasin.
           </p>
         </div>
-      </div>
+        <p className="login-reveal login-reveal--3 text-[11px] text-white/45">
+          <span className="capitalize">{dateLabel}</span>
+        </p>
+      </aside>
 
-      <div className="min-h-svh overflow-y-auto overscroll-y-contain bg-zinc-50">
-      <div className="flex min-h-svh items-center justify-center p-6">
-        <div className="w-full max-w-md">
-          <div className="mb-6">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
-              <IconShield className="h-3 w-3" />
-              Session sécurisée
-            </span>
-            <h1 className="mt-3 text-[24px] font-semibold tracking-tight text-zinc-900">
-              Connexion
-            </h1>
-            <p className="mt-1 text-[13px] text-zinc-500">
-              {selected
-                ? `Saisissez votre PIN${selected.password ? ' ou mot de passe' : ''}.`
-                : 'Sélectionnez votre profil pour continuer.'}
+      <main className="login-main">
+        <div className="relative z-[1] w-full">
+          <div
+            className={cn(
+              'login-card',
+              cardReady && 'login-card--in',
+              shakeKey > 0 && error && 'login-card--shake',
+            )}
+            data-shake-parity={shakeKey % 2}
+          >
+            <div className="login-card-glow" aria-hidden />
+            <p className="mb-5 flex items-center gap-2.5 font-display text-2xl font-semibold tracking-[-0.04em] text-[#0033aa] lg:hidden">
+              <BrandLogo size="sm" ring="subtle" />
+              {BRAND_NAME}
             </p>
-            {bootstrappedOwner && !selected ? (
-              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
-                Premier accès : connectez-vous avec le PIN{' '}
-                <span className="font-mono font-semibold">{DEFAULT_OWNER_PIN}</span>
-                , puis changez-le dans Personnel.
+            <div className="mb-6">
+              <span className="login-badge inline-flex items-center gap-1.5 rounded-full border border-[#0033aa]/15 bg-[#e8eefa] px-3 py-1 text-[11px] font-semibold text-[#0033aa]">
+                <IconShield className="h-3 w-3" />
+                Accès équipe
+              </span>
+              <h1 className="mt-3 font-display text-[1.55rem] font-semibold tracking-[-0.03em] text-[#10182b]">
+                {selected ? 'Votre code' : 'Qui êtes-vous ?'}
+              </h1>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-[#5a657c]">
+                {selected
+                  ? `Entrez votre PIN${selected.password ? ' ou mot de passe' : ''} pour démarrer.`
+                  : 'Touchez votre nom pour continuer.'}
               </p>
-            ) : null}
-          </div>
+              {bootstrappedOwner && !selected ? (
+                <p className="login-hint mt-3 rounded-xl border border-amber-200/80 bg-amber-50 px-3.5 py-2.5 text-[12px] leading-relaxed text-amber-950">
+                  Première connexion : code{' '}
+                  <span className="font-mono font-semibold">
+                    {DEFAULT_OWNER_PIN}
+                  </span>
+                  . Vous pourrez le changer ensuite.
+                </p>
+              ) : null}
+            </div>
 
-          {!selected ? (
-            <div className="space-y-2">
-              {profiles.length === 0 ? (
-                <EmptyState
-                  title="Aucun profil actif"
-                  description="Demandez à un administrateur de créer un utilisateur dans Personnel."
-                />
+            <div key={stepKey} className="login-step">
+              {!selected ? (
+                <div className="space-y-2">
+                  {profiles.length === 0 ? (
+                    <EmptyState
+                      title="Personne n’est encore inscrit"
+                      description="Un administrateur doit d’abord créer un membre de l’équipe."
+                    />
+                  ) : (
+                    profiles.map((p, index) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelect(p)}
+                        className="login-profile group"
+                        style={
+                          {
+                            '--stagger': index,
+                          } as CSSProperties
+                        }
+                      >
+                        <span className="login-avatar">{p.initials}</span>
+                        <span className="min-w-0 flex-1 text-left">
+                          <span className="block truncate text-[14px] font-semibold text-[#10182b]">
+                            {p.displayName}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[11px] text-[#6a7690]">
+                            {roleLabel(p.role)}
+                            {p.storeId
+                              ? ` · ${storeNameById.get(p.storeId) ?? p.storeId}`
+                              : ''}
+                          </span>
+                        </span>
+                        <IconArrowRight className="h-4 w-4 shrink-0 text-[#9aa6bc] transition duration-300 group-hover:translate-x-1 group-hover:text-[#0033aa]" />
+                      </button>
+                    ))
+                  )}
+                </div>
               ) : (
-                profiles.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => handleSelect(p)}
-                    className="ui-card-hover group flex w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 text-left"
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  <div className="login-selected flex items-center justify-between gap-3 rounded-2xl border border-[#0033aa]/10 bg-[#f4f6fb] px-3 py-2.5">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="login-avatar login-avatar--solid login-avatar--pulse">
+                        {selected.initials}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-[14px] font-semibold text-[#10182b]">
+                          {selected.displayName}
+                        </p>
+                        <p className="truncate text-[11px] text-[#6a7690]">
+                          {roleLabel(selected.role)}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      iconLeft={<IconArrowLeft />}
+                      onClick={handleBack}
+                    >
+                      Changer
+                    </Button>
+                  </div>
+
+                  <Field
+                    label="Code d’accès"
+                    error={error ?? undefined}
+                    required
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[12px] font-bold text-zinc-700 group-hover:bg-zinc-900 group-hover:text-white">
-                      {p.initials}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] font-semibold text-zinc-900">
-                        {p.displayName}
-                      </span>
-                      <span className="text-[11px] text-zinc-500">
-                        {roleLabel(p.role)}
-                        {p.storeId
-                          ? ` · ${storeNameById.get(p.storeId) ?? p.storeId}`
-                          : ''}
-                      </span>
-                    </span>
-                    <IconArrowRight className="h-4 w-4 text-zinc-400 transition group-hover:translate-x-0.5 group-hover:text-zinc-900" />
-                  </button>
-                ))
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type={showSecret ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        inputMode="numeric"
+                        value={secret}
+                        onChange={(e) => {
+                          setSecret(e.target.value)
+                          setError(null)
+                        }}
+                        placeholder="••••"
+                        autoFocus
+                        disabled={lockRemainingSec > 0}
+                        className="font-mono-nums text-base tracking-[0.35em]"
+                        invalid={!!error}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className={cn('shrink-0')}
+                        aria-label={
+                          showSecret
+                            ? 'Masquer le secret'
+                            : 'Afficher le secret'
+                        }
+                        onClick={() => setShowSecret((v) => !v)}
+                      >
+                        {showSecret ? <IconEyeOff /> : <IconEye />}
+                      </Button>
+                    </div>
+                  </Field>
+
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    fullWidth
+                    size="lg"
+                    className="login-submit"
+                    disabled={lockRemainingSec > 0}
+                  >
+                    {lockRemainingSec > 0
+                      ? `Patientez ${lockRemainingSec}s`
+                      : 'Démarrer'}
+                  </Button>
+                </form>
               )}
             </div>
-          ) : (
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-[12px] font-bold text-white">
-                    {selected.initials}
-                  </span>
-                  <div>
-                    <p className="text-[14px] font-semibold text-zinc-900">
-                      {selected.displayName}
-                    </p>
-                    <p className="text-[11px] text-zinc-500">
-                      {roleLabel(selected.role)}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  iconLeft={<IconArrowLeft />}
-                  onClick={handleBack}
-                >
-                  Autre
-                </Button>
-              </div>
-
-              <Field
-                label="PIN ou mot de passe"
-                error={error ?? undefined}
-                required
-              >
-                <div className="flex items-center gap-2">
-                  <Input
-                    type={showSecret ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    inputMode="numeric"
-                    value={secret}
-                    onChange={(e) => {
-                      setSecret(e.target.value)
-                      setError(null)
-                    }}
-                    placeholder="••••"
-                    autoFocus
-                    disabled={lockRemainingSec > 0}
-                    className="font-mono-nums text-base tracking-wider"
-                    invalid={!!error}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    aria-label={
-                      showSecret ? 'Masquer le secret' : 'Afficher le secret'
-                    }
-                    onClick={() => setShowSecret((v) => !v)}
-                  >
-                    {showSecret ? <IconEyeOff /> : <IconEye />}
-                  </Button>
-                </div>
-              </Field>
-
-              <Button
-                type="submit"
-                variant="primary"
-                fullWidth
-                size="lg"
-                disabled={lockRemainingSec > 0}
-              >
-                {lockRemainingSec > 0
-                  ? `Réessayer dans ${lockRemainingSec}s`
-                  : 'Ouvrir l’espace gestion'}
-              </Button>
-            </form>
-          )}
+          </div>
         </div>
-      </div>
-      </div>
+      </main>
+
+      <aside className="login-brand login-brand--right">
+        <span className="login-reveal login-reveal--1 login-clock font-mono-nums text-right text-[13px] font-semibold tabular-nums text-white/80">
+          {timeLabel}
+        </span>
+        <div className="login-reveal login-reveal--2 flex max-w-sm flex-col items-end">
+          <ul className="flex flex-wrap justify-end gap-2">
+            {HIGHLIGHTS.map(({ icon: Icon, label }, index) => (
+              <li
+                key={label}
+                className="login-chip"
+                style={{ '--stagger': index } as CSSProperties}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-6 text-right text-[13px] leading-relaxed text-white/65">
+            Tout reste sur cet appareil, même sans internet.
+          </p>
+        </div>
+        <p className="login-reveal login-reveal--3 text-right text-[11px] text-white/45">
+          {BRAND_NAME}
+        </p>
+      </aside>
     </div>
   )
 }

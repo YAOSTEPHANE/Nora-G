@@ -1,6 +1,6 @@
-# Documentation CaisseCI
+# Documentation Nora
 
-Index de la documentation de l’application **Caisse CI**.
+Index de la documentation de l’application **Nora**.
 
 ## Par où commencer ?
 

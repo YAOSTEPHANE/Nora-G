@@ -21,11 +21,11 @@ import { BrandLogo } from './BrandLogo'
 import {
   IconAnalytique,
   IconCaisse,
+  IconDash,
   IconCatalogue,
   IconChevronDown,
   IconClose,
   IconCollapse,
-  IconDash,
   IconExpand,
   IconIntegrations,
   IconJournal,
@@ -43,16 +43,29 @@ import {
   IconMail,
   IconFile,
   IconReceipt,
-  IconCard,
   IconSettings,
+  IconTruck,
+  IconWrench,
+  IconCheckCircle,
+  IconCalendar,
+  IconCash,
+  IconKey,
+  IconRefund,
+  IconLayers,
+  IconArchive,
+  IconCard,
+  IconShield,
+  IconSparkles,
+  IconWarning,
+  IconAlert,
 } from '../ui/icons'
 
 /** Onglet filtre caisse : « Tous » ou libellé de catégorie (voir `productCategories` en base). */
 export type CategoryTab = string
 
 const ICON_BY_VIEW: Record<NavViewId, ReactNode> = {
-  caisse: <IconCaisse />,
   dash: <IconDash />,
+  caisse: <IconCaisse />,
   catalogue: <IconCatalogue />,
   stocks: <IconStocks />,
   comptabilite: <IconSpreadsheet />,
@@ -71,7 +84,38 @@ const ICON_BY_VIEW: Record<NavViewId, ReactNode> = {
   integrations: <IconIntegrations />,
   parametres: <IconSettings />,
   network: <IconNetwork />,
-  subscription: <IconCard />,
+  achats: <IconTruck />,
+  devis: <IconFile />,
+  sav: <IconWrench />,
+  credits: <IconCash />,
+  inventairePhysique: <IconCheckCircle />,
+  peremptions: <IconCalendar />,
+  livraisons: <IconTruck />,
+  location: <IconKey />,
+  carte: <IconCaisse />,
+  cadeaux: <IconStar />,
+  rdv: <IconPointage />,
+  tarifs: <IconTag />,
+  retoursFournisseur: <IconRefund />,
+  production: <IconLayers />,
+  bl: <IconArchive />,
+  depenses: <IconCard />,
+  retoursClient: <IconRefund />,
+  consignes: <IconArchive />,
+  ordonnances: <IconFile />,
+  chantiers: <IconWrench />,
+  abonnements: <IconStar />,
+  haccp: <IconShield />,
+  vip: <IconSparkles />,
+  commissions: <IconCash />,
+  misesDeCote: <IconArchive />,
+  pertes: <IconWarning />,
+  allergenes: <IconAlert />,
+  evenements: <IconStar />,
+  reprises: <IconRefund />,
+  protocoles: <IconFile />,
+  cave: <IconCaisse />,
+  magistrales: <IconLayers />,
 }
 
 
@@ -91,8 +135,6 @@ type CommonProps = {
     role: UserRole
   }
   onLogout: () => void
-  /** Propriétaire (admin / gérant) : ouvrir la page abonnement. */
-  onOpenSubscription?: () => void
   navSections?: readonly NavSection[]
 }
 
@@ -118,7 +160,6 @@ function SidebarBody({
   canSwitchStore,
   user,
   onLogout,
-  onOpenSubscription,
   navSections,
   collapsed,
   onToggleCollapsed,
@@ -132,8 +173,6 @@ function SidebarBody({
   const activeStore = stores.find((s) => s.id === activeStoreId)
   const [storeMenuOpen, setStoreMenuOpen] = useState(false)
   const isMobile = variant === 'mobile'
-  const canManageSubscription =
-    user.role === 'admin' || user.role === 'gerant'
   const [orgBranding, setOrgBranding] = useState(() =>
     getCachedOrgWorkspaceBranding(),
   )
@@ -343,30 +382,6 @@ function SidebarBody({
 
         {/* User block */}
         <div className="space-y-1.5">
-          {canManageSubscription && onOpenSubscription && !collapsed ? (
-            <button
-              type="button"
-              onClick={onOpenSubscription}
-              className="flex w-full items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-left transition hover:bg-emerald-100"
-            >
-              <IconCard className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
-              <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-emerald-900">
-                Mon abonnement
-              </span>
-            </button>
-          ) : null}
-          {canManageSubscription && onOpenSubscription && collapsed ? (
-            <Tooltip content="Mon abonnement" side="right">
-              <button
-                type="button"
-                onClick={onOpenSubscription}
-                className="flex w-full items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100"
-                aria-label="Mon abonnement"
-              >
-                <IconCard className="h-3.5 w-3.5" />
-              </button>
-            </Tooltip>
-          ) : null}
           <div
             className={cn(
               'flex items-center gap-2 rounded-md p-2',

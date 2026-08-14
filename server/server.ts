@@ -4,7 +4,6 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app } from './app.js'
 import { prisma } from './lib/prisma.js'
-import { startSubscriptionReminderScheduler } from './lib/subscriptionReminders.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -21,8 +20,7 @@ const port = Number(process.env.PORT ?? 4000)
 app.use('/branding', express.static(publicBrandingPath))
 
 const server = app.listen(port, () => {
-  console.log(`CaisseCI API en écoute sur http://localhost:${port}`)
-  startSubscriptionReminderScheduler()
+  console.log(`Nora API en écoute sur http://localhost:${port}`)
   void import('./lib/storeSlug.js')
     .then(({ backfillMissingStoreSlugs }) => backfillMissingStoreSlugs())
     .then((n) => {

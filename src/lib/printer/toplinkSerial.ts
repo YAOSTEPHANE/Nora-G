@@ -1,4 +1,4 @@
-const PRINTER_META_KEY = 'caisseci-toplink-printer-meta'
+﻿const PRINTER_META_KEY = 'nora-toplink-printer-meta'
 
 /** Débits courants pour thermiques ESC/POS USB-série. */
 const BAUD_CANDIDATES = [9600, 115200, 38400, 57600] as const

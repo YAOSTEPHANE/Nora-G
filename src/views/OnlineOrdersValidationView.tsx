@@ -891,9 +891,10 @@ export function OnlineOrdersValidationView({
   )
 
   return (
-    <div className="space-y-4 pb-6 sm:space-y-5">
+    <div className="module-page">
       <PageHeader
-        eyebrow="Commandes en ligne"
+        icon={<IconOnlineOrders />}
+        eyebrow="Commandes"
         title={`${pending.length} commande${pending.length > 1 ? 's' : ''} en attente`}
         subtitle={
           canValidateOnlineOrders

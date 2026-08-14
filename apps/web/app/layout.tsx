@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from 'next'
+﻿import type { Metadata, Viewport } from 'next'
 
 import '@fontsource/dm-sans/400.css'
 import '@fontsource/dm-sans/500.css'
@@ -13,30 +13,28 @@ import Providers from './providers'
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? 'http://localhost:3000'),
-  title: 'Caisse CI — Caisse POS & abonnement',
+  title: 'Nora',
   description:
-    'Caisse CI — caisse POS offline-first pour la Côte d’Ivoire. Mobile money, multi-postes, essai gratuit 1 mois. Orange Money, Wave, MTN MoMo.',
+    'Nora — point de vente offline-first pour la Côte d’Ivoire. Mobile money, multi-postes, Orange Money, Wave, MTN MoMo.',
   openGraph: {
-    title: 'Caisse CI — Caisse POS & abonnement',
+    title: 'Nora',
     description:
-      'Vendez hors ligne, payez en mobile money, gérez vos équipes. Essai gratuit 1 mois.',
+      'Vendez hors ligne, encaissez en mobile money, gérez vos équipes.',
     type: 'website',
-    images: ['/marketing/hero-caisseci.png'],
+    images: ['/branding/nora-logo.png'],
   },
   twitter: {
     card: 'summary_large_image',
-    images: ['/marketing/hero-caisseci.png'],
+    images: ['/branding/nora-logo.png'],
   },
   icons: {
-    icon: [
-      { url: '/branding/logo-circle.svg', type: 'image/svg+xml' },
-      { url: '/branding/caisse-ci-logo.png', type: 'image/png' },
-    ],
+    icon: [{ url: '/branding/nora-logo.png', type: 'image/png' }],
+    apple: [{ url: '/branding/nora-logo.png', type: 'image/png' }],
   },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#1463ff',
+  themeColor: '#0033AA',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',

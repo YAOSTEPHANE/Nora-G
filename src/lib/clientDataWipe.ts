@@ -1,7 +1,7 @@
-/** Jeton serveur → purge IndexedDB sur tous les postes de l’org. */
+﻿/** Jeton serveur → purge IndexedDB sur tous les postes de l’org. */
 
-const FORCE_CLIENT_WIPE_AT_KEY = 'caisseci-force-client-wipe-at'
-const LOCAL_WIPE_APPLIED_AT_PREFIX = 'caisseci-local-data-wipe-at:'
+const FORCE_CLIENT_WIPE_AT_KEY = 'nora-force-client-wipe-at'
+const LOCAL_WIPE_APPLIED_AT_PREFIX = 'nora-local-data-wipe-at:'
 
 export function getStoredForceClientWipeAt(): number {
   if (typeof window === 'undefined') return 0

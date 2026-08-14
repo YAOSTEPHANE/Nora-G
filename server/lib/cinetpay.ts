@@ -114,7 +114,7 @@ export async function initCinetpayPayment(
   const phone = splitCiPhone(input.customerPhoneE164)
   const nameParts = input.customerName.trim().split(/\s+/)
   const customerName = nameParts[0] ?? 'Client'
-  const customerSurname = nameParts.slice(1).join(' ') || 'CaisseCI'
+  const customerSurname = nameParts.slice(1).join(' ') || 'Nora'
 
   const payload: Record<string, unknown> = {
     apikey: requireApiKey(creds),

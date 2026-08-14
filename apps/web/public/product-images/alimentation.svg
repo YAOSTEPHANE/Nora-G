@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-  <rect width="640" height="640" fill="#b45309"/>
-  <rect x="170" y="180" width="300" height="300" rx="30" fill="#fef3c7"/>
-  <ellipse cx="320" cy="340" rx="110" ry="70" fill="#fff7ed"/>
-  <text x="320" y="570" text-anchor="middle" fill="#fef3c7" font-size="42" font-family="DM Sans, Arial">Alimentation</text>
-</svg>

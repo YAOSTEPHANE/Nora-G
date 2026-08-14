@@ -1,7 +1,7 @@
-import { profileById } from './profiles'
+﻿import { profileById } from './profiles'
 import type { StaffAuthMethod, StaffProfile, StaffSession } from './types'
 
-const KEY = 'caisseci-staff-session'
+const KEY = 'nora-staff-session'
 
 function readRaw(): StaffSession | null {
   if (typeof window === 'undefined') return null

@@ -16,7 +16,7 @@ const TONE: Record<BadgeTone, string> = {
   warning: 'bg-amber-50 text-amber-800 border-amber-200',
   danger: 'bg-rose-50 text-rose-700 border-rose-200',
   info: 'bg-sky-50 text-sky-700 border-sky-200',
-  accent: 'bg-[color:var(--color-accent-soft)] text-[color:var(--color-accent-strong)] border-[color:var(--color-accent)]/20',
+  accent: 'bg-caisse-gold-soft text-caisse-gold border-[rgba(0,51,170,0.22)]',
   violet: 'bg-violet-50 text-violet-700 border-violet-200',
 }
 

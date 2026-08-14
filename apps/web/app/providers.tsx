@@ -9,6 +9,7 @@ import { StaffSessionProvider } from '../src/context/StaffSessionContext'
 import { SiteBrandingProvider } from '../src/context/SiteBrandingContext'
 import { useOnlineStatus } from '../src/hooks/useOnlineStatus'
 import { initClientSentry } from '../src/lib/sentry'
+import { migrateLegacyStorage } from '../src/lib/migrateLegacyStorage'
 
 function OnlineSubscription({ children }: { children: React.ReactNode }) {
   const online = useOnlineStatus()
@@ -21,6 +22,7 @@ function OnlineSubscription({ children }: { children: React.ReactNode }) {
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
+    migrateLegacyStorage()
     initClientSentry()
     // SW / caches d’une ancienne build (ou d’un autre projet sur :3000) servent des chunks
     // fantômes (ex. components/ui/custom-cursor.tsx) → ReactCurrentDispatcher / Lazy undefined.

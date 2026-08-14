@@ -13,15 +13,18 @@ import { cn } from './ui/cn'
 import { clearStaffSession } from './auth/session'
 import type { StaffProfile } from './auth/types'
 import { AddProductModal } from './components/AddProductModal'
+import {
+  CheckoutComplianceModal,
+  type CheckoutComplianceResult,
+} from './components/CheckoutComplianceModal'
 import { CartPanel } from './components/CartPanel'
 import { CaisseHeader } from './components/CaisseHeader'
 import { OfflineBanner } from './components/OfflineBanner'
 import { ReceiptModal } from './components/ReceiptModal'
 import { ProductGrid, type ProductGridDensity } from './components/ProductGrid'
-import { MobileNavDrawer, Sidebar, type CategoryTab } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
+import { DashboardNavGrid } from './components/DashboardNavGrid'
 import { useActiveStore } from './context/ActiveStoreContext'
-import { SubscriptionBanner } from './components/SubscriptionBanner'
 import { useSubscription } from './context/SubscriptionContext'
 import {
   filterNavSections,
@@ -29,7 +32,8 @@ import {
   navSectionsForRole,
   type NavViewId,
 } from './navigation'
-import { DashboardView } from './views/DashboardView'
+import { domainAllowsView, type BusinessDomain } from './lib/businessDomain'
+import { categoryTabsForDomain } from './lib/domainCatalog'
 import {
   db,
   ensureAllStoreStockRows,
@@ -64,6 +68,12 @@ import { useBarcodeScannerWedge } from './hooks/useBarcodeScannerWedge'
 import { storeStockRowId } from './lib/storeStockId'
 import { assertBarcodeAvailable } from './lib/productBarcode'
 import { deductKitchenIngredientStockForLines } from './lib/kitchenStock'
+import { deductTrackedStockForLine } from './lib/productTracking'
+import { qtyStepForProduct, roundQty } from './lib/saleUnit'
+import {
+  applyCustomerCreditSale,
+  customerCreditAvailable,
+} from './lib/customerCredit'
 import {
   APP_SETTINGS_CHANGED_EVENT,
   getAppSettings,
@@ -74,15 +84,13 @@ import {
 } from './lib/syncMeta'
 import { saleLocalYmd } from './lib/salesStats'
 import { useStorefrontAutoSync } from './hooks/useStorefrontAutoSync'
-import { flushSyncQueue } from './lib/sync'
+import { enqueueProductSync, enqueueStockSync, flushSyncQueue } from './lib/sync'
 import {
   getDeviceConnectivityDemo,
   getKitchenStationDemo,
   isKitchenModuleDemoOn,
 } from './lib/integrationsConfig'
-import { Tabs } from './ui/Tabs'
 import { Button } from './ui/Button'
-import { Select } from './ui/Input'
 import { useToast } from './ui/Toast'
 import { IconArrowRight, IconReceipt, IconShield } from './ui/icons'
 
@@ -112,8 +120,6 @@ function tableStatusLabel(status: DiningTableStatus): string {
 function normalizePhone(raw: string): string {
   return raw.replace(/\D/g, '')
 }
-
-const SIDEBAR_KEY = 'caisseci-sidebar-collapsed'
 
 const CatalogueView = lazy(() =>
   import('./views/CatalogueView').then((m) => ({ default: m.CatalogueView })),
@@ -184,15 +190,112 @@ const IntegrationsView = lazy(() =>
 const MultiStoreView = lazy(() =>
   import('./views/MultiStoreView').then((m) => ({ default: m.MultiStoreView })),
 )
-const SubscriptionView = lazy(() =>
-  import('./views/SubscriptionView').then((m) => ({
-    default: m.SubscriptionView,
-  })),
-)
 const ParametresView = lazy(() =>
   import('./views/ParametresView').then((m) => ({
     default: m.ParametresView,
   })),
+)
+const AchatsView = lazy(() =>
+  import('./views/AchatsView').then((m) => ({ default: m.AchatsView })),
+)
+const DevisView = lazy(() =>
+  import('./views/DevisView').then((m) => ({ default: m.DevisView })),
+)
+const SavView = lazy(() =>
+  import('./views/SavView').then((m) => ({ default: m.SavView })),
+)
+const CreditsView = lazy(() =>
+  import('./views/CreditsView').then((m) => ({ default: m.CreditsView })),
+)
+const InventairePhysiqueView = lazy(() =>
+  import('./views/InventairePhysiqueView').then((m) => ({
+    default: m.InventairePhysiqueView,
+  })),
+)
+const PeremptionsView = lazy(() =>
+  import('./views/PeremptionsView').then((m) => ({ default: m.PeremptionsView })),
+)
+const LivraisonsView = lazy(() =>
+  import('./views/LivraisonsView').then((m) => ({ default: m.LivraisonsView })),
+)
+const LocationView = lazy(() =>
+  import('./views/LocationView').then((m) => ({ default: m.LocationView })),
+)
+const CarteView = lazy(() =>
+  import('./views/CarteView').then((m) => ({ default: m.CarteView })),
+)
+const CadeauxView = lazy(() =>
+  import('./views/CadeauxView').then((m) => ({ default: m.CadeauxView })),
+)
+const RdvView = lazy(() =>
+  import('./views/RdvView').then((m) => ({ default: m.RdvView })),
+)
+const TarifsView = lazy(() =>
+  import('./views/TarifsView').then((m) => ({ default: m.TarifsView })),
+)
+const RetoursFournisseurView = lazy(() =>
+  import('./views/RetoursFournisseurView').then((m) => ({
+    default: m.RetoursFournisseurView,
+  })),
+)
+const ProductionView = lazy(() =>
+  import('./views/ProductionView').then((m) => ({ default: m.ProductionView })),
+)
+const BlView = lazy(() =>
+  import('./views/BlView').then((m) => ({ default: m.BlView })),
+)
+const DepensesView = lazy(() =>
+  import('./views/DepensesView').then((m) => ({ default: m.DepensesView })),
+)
+const RetoursClientView = lazy(() =>
+  import('./views/RetoursClientView').then((m) => ({
+    default: m.RetoursClientView,
+  })),
+)
+const ConsignesView = lazy(() =>
+  import('./views/ConsignesView').then((m) => ({ default: m.ConsignesView })),
+)
+const OrdonnancesView = lazy(() =>
+  import('./views/OrdonnancesView').then((m) => ({ default: m.OrdonnancesView })),
+)
+const ChantiersView = lazy(() =>
+  import('./views/ChantiersView').then((m) => ({ default: m.ChantiersView })),
+)
+const AbonnementsView = lazy(() =>
+  import('./views/AbonnementsView').then((m) => ({ default: m.AbonnementsView })),
+)
+const HaccpView = lazy(() =>
+  import('./views/HaccpView').then((m) => ({ default: m.HaccpView })),
+)
+const VipView = lazy(() =>
+  import('./views/VipView').then((m) => ({ default: m.VipView })),
+)
+const CommissionsView = lazy(() =>
+  import('./views/CommissionsView').then((m) => ({ default: m.CommissionsView })),
+)
+const MisesDeCoteView = lazy(() =>
+  import('./views/MisesDeCoteView').then((m) => ({ default: m.MisesDeCoteView })),
+)
+const PertesView = lazy(() =>
+  import('./views/PertesView').then((m) => ({ default: m.PertesView })),
+)
+const AllergenesView = lazy(() =>
+  import('./views/AllergenesView').then((m) => ({ default: m.AllergenesView })),
+)
+const EvenementsView = lazy(() =>
+  import('./views/EvenementsView').then((m) => ({ default: m.EvenementsView })),
+)
+const ReprisesView = lazy(() =>
+  import('./views/ReprisesView').then((m) => ({ default: m.ReprisesView })),
+)
+const ProtocolesView = lazy(() =>
+  import('./views/ProtocolesView').then((m) => ({ default: m.ProtocolesView })),
+)
+const CaveView = lazy(() =>
+  import('./views/CaveView').then((m) => ({ default: m.CaveView })),
+)
+const MagistralesView = lazy(() =>
+  import('./views/MagistralesView').then((m) => ({ default: m.MagistralesView })),
 )
 
 export function Shell({ staff, online, onLogout }: Props) {
@@ -210,36 +313,31 @@ export function Shell({ staff, online, onLogout }: Props) {
   useStorefrontAutoSync()
 
   const perms = useMemo(() => effectivePermissions(staff), [staff])
+  const [businessDomain, setBusinessDomain] = useState<BusinessDomain>(
+    () => getAppSettings().businessDomain,
+  )
   const navSections = useMemo(() => {
     const roleSections = navSectionsForRole(staff.role)
     const planFiltered = filterNavSections(roleSections, canAccessView)
-    if (perms.canConfigureAppSettings) return planFiltered
-    return planFiltered
+    const domainFiltered = filterNavSections(planFiltered, (view) =>
+      domainAllowsView(businessDomain, view),
+    )
+    if (perms.canConfigureAppSettings) return domainFiltered
+    return domainFiltered
       .map((section) => ({
         ...section,
         items: section.items.filter((item) => item.id !== 'parametres'),
       }))
       .filter((section) => section.items.length > 0)
-  }, [staff.role, canAccessView, perms.canConfigureAppSettings])
+  }, [
+    staff.role,
+    canAccessView,
+    perms.canConfigureAppSettings,
+    businessDomain,
+  ])
   const allowedViews = useMemo(() => {
     return flattenedNavViewIds(navSections)
   }, [navSections])
-
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(SIDEBAR_KEY) === '1'
-    } catch {
-      return false
-    }
-  })
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  useEffect(() => {
-    try {
-      localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0')
-    } catch {
-      /* ignore */
-    }
-  }, [sidebarCollapsed])
 
   useEffect(() => {
     const syncAppSettings = () => {
@@ -247,6 +345,7 @@ export function Shell({ staff, online, onLogout }: Props) {
       setProductGridDensity(settings.productGridDensity)
       setBlockSaleWhenOutOfStock(settings.blockSaleWhenOutOfStock)
       setAutoPrintReceiptAfterSale(settings.autoPrintReceiptAfterSale)
+      setBusinessDomain(settings.businessDomain)
     }
     window.addEventListener(APP_SETTINGS_CHANGED_EVENT, syncAppSettings)
     return () => window.removeEventListener(APP_SETTINGS_CHANGED_EVENT, syncAppSettings)
@@ -255,7 +354,7 @@ export function Shell({ staff, online, onLogout }: Props) {
   const [addProductOpen, setAddProductOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [barcodeInput, setBarcodeInput] = useState('')
-  const [category, setCategory] = useState<CategoryTab>('Tous')
+  const [category, setCategory] = useState<string>('Tous')
   const [productGridDensity, setProductGridDensity] = useState<ProductGridDensity>(
     () => getAppSettings().productGridDensity,
   )
@@ -277,9 +376,8 @@ export function Shell({ staff, online, onLogout }: Props) {
     () => defaultCheckoutPayment(),
   )
   const [checkoutBusy, setCheckoutBusy] = useState(false)
-  const [activeView, setActiveView] = useState<NavViewId>(() =>
-    staff.role === 'cuisinier' ? 'kitchen' : 'caisse',
-  )
+  const [checkoutComplianceOpen, setCheckoutComplianceOpen] = useState(false)
+  const [activeView, setActiveView] = useState<NavViewId>(() => 'dash')
   const [isFloatingCartOpen, setIsFloatingCartOpen] = useState(false)
   const [mobileCartPulse, setMobileCartPulse] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState<
@@ -314,9 +412,12 @@ export function Shell({ staff, online, onLogout }: Props) {
       [],
       [],
     ) ?? []
-  const categoryTabs = useMemo<CategoryTab[]>(() => {
-    return ['Tous', ...productCategoryRows.map((r) => r.name)]
-  }, [productCategoryRows])
+  const categoryTabs = useMemo<string[]>(() => {
+    return categoryTabsForDomain(
+      businessDomain,
+      productCategoryRows.map((r) => r.name),
+    )
+  }, [businessDomain, productCategoryRows])
 
   useEffect(() => {
     if (categoryTabs.length === 0) return
@@ -437,16 +538,11 @@ export function Shell({ staff, online, onLogout }: Props) {
   )
 
   useEffect(() => {
+    if (activeView === 'dash') return
     if (!allowedViews.has(activeView)) {
-      const fallback: NavViewId =
-        staff.role === 'cuisinier' && allowedViews.has('kitchen')
-          ? 'kitchen'
-          : allowedViews.has('caisse')
-            ? 'caisse'
-            : ([...allowedViews][0] ?? 'caisse')
-      setActiveView(fallback)
+      setActiveView('dash')
     }
-  }, [staff.role, activeView, allowedViews])
+  }, [activeView, allowedViews])
 
   useEffect(() => {
     setDeviceConnectivity(getDeviceConnectivityDemo())
@@ -551,6 +647,10 @@ export function Shell({ staff, online, onLogout }: Props) {
     const gross = Math.round(totalsFromLinesTTC(cart, discountPct).totalTTC)
     return Math.max(0, gross - loyaltyRedeemAmountTTC)
   }, [cart, discountPct, loyaltyRedeemAmountTTC])
+  const creditAvailableTTC = useMemo(() => {
+    if (!activeLoyaltyCustomer) return 0
+    return customerCreditAvailable(activeLoyaltyCustomer)
+  }, [activeLoyaltyCustomer])
 
   const syncLabel = useMemo(() => {
     const pending = queueItems.length
@@ -644,11 +744,13 @@ export function Shell({ staff, online, onLogout }: Props) {
     (p: ProductWithStock, originEl?: HTMLElement | null) => {
       if (p.archived) return
       const vat = p.vatRatePct ?? DEFAULT_VAT_RATE_PCT
+      const step = qtyStepForProduct(p)
       let didAdd = false
       setCart((prev) => {
         const line = prev.find((l) => l.productId === p.id)
         const currentQty = line?.qty ?? 0
-        if (blockSaleWhenOutOfStock && currentQty >= p.stock) return prev
+        const nextQty = roundQty(currentQty + step, step)
+        if (blockSaleWhenOutOfStock && nextQty > p.stock + 1e-9) return prev
         if (!line) {
           didAdd = true
           return [
@@ -657,7 +759,7 @@ export function Shell({ staff, online, onLogout }: Props) {
               productId: p.id,
               name: p.name,
               unitPriceTTC: p.priceTTC,
-              qty: 1,
+              qty: step,
               vatRatePct: vat,
             },
           ]
@@ -667,7 +769,7 @@ export function Shell({ staff, online, onLogout }: Props) {
           l.productId === p.id
             ? {
                 ...l,
-                qty: l.qty + 1,
+                qty: nextQty,
                 unitPriceTTC: p.priceTTC,
                 name: p.name,
                 vatRatePct: vat,
@@ -695,12 +797,14 @@ export function Shell({ staff, online, onLogout }: Props) {
       setCart((prev) => {
         const prod = displayProducts.find((x) => x.id === productId)
         if (!prod) return prev
+        const step = qtyStepForProduct(prod)
         return prev.map((l) => {
           if (l.productId !== productId) return l
-          if (blockSaleWhenOutOfStock && l.qty >= prod.stock) return l
+          const nextQty = roundQty(l.qty + step, step)
+          if (blockSaleWhenOutOfStock && nextQty > prod.stock + 1e-9) return l
           return {
             ...l,
-            qty: l.qty + 1,
+            qty: nextQty,
             unitPriceTTC: prod.priceTTC,
             name: prod.name,
             vatRatePct: prod.vatRatePct ?? DEFAULT_VAT_RATE_PCT,
@@ -711,15 +815,51 @@ export function Shell({ staff, online, onLogout }: Props) {
     [displayProducts, blockSaleWhenOutOfStock],
   )
 
-  const handleDec = useCallback((productId: string) => {
-    setCart((prev) =>
-      prev
-        .map((l) =>
-          l.productId === productId ? { ...l, qty: l.qty - 1 } : l,
+  const handleDec = useCallback(
+    (productId: string) => {
+      setCart((prev) => {
+        const prod = displayProducts.find((x) => x.id === productId)
+        const step = qtyStepForProduct(prod)
+        return prev
+          .map((l) =>
+            l.productId === productId
+              ? { ...l, qty: roundQty(l.qty - step, step) }
+              : l,
+          )
+          .filter((l) => l.qty > 1e-9)
+      })
+    },
+    [displayProducts],
+  )
+
+  const handleSetQty = useCallback(
+    (productId: string, qty: number) => {
+      setCart((prev) => {
+        const prod = displayProducts.find((x) => x.id === productId)
+        if (!prod) return prev
+        const step = qtyStepForProduct(prod)
+        let next = roundQty(Math.max(0, qty), step)
+        if (blockSaleWhenOutOfStock && next > prod.stock + 1e-9) {
+          next = roundQty(prod.stock, step)
+        }
+        if (next <= 1e-9) {
+          return prev.filter((l) => l.productId !== productId)
+        }
+        return prev.map((l) =>
+          l.productId === productId
+            ? {
+                ...l,
+                qty: next,
+                unitPriceTTC: prod.priceTTC,
+                name: prod.name,
+                vatRatePct: prod.vatRatePct ?? DEFAULT_VAT_RATE_PCT,
+              }
+            : l,
         )
-        .filter((l) => l.qty > 0),
-    )
-  }, [])
+      })
+    },
+    [displayProducts, blockSaleWhenOutOfStock],
+  )
 
   const handleRemove = useCallback((productId: string) => {
     setCart((prev) => prev.filter((l) => l.productId !== productId))
@@ -895,7 +1035,10 @@ export function Shell({ staff, online, onLogout }: Props) {
   }, [barcodeInput, processScannedBarcode])
 
   const wedgeEnabled =
-    activeView === 'caisse' && !receiptOpen && !addProductOpen
+    activeView === 'caisse' &&
+    !receiptOpen &&
+    !addProductOpen &&
+    !checkoutComplianceOpen
 
   useBarcodeScannerWedge(wedgeEnabled, processScannedBarcode)
 
@@ -917,151 +1060,224 @@ export function Shell({ staff, online, onLogout }: Props) {
         stock: initialStock,
       })
       await syncProductCategoriesFromProducts()
+      await enqueueProductSync({
+        action: 'upsert',
+        productId: product.id,
+        product,
+      })
+      await enqueueStockSync({
+        productId: product.id,
+        stock: initialStock,
+        lowStockThreshold: product.lowStockThreshold,
+        storeId: activeStoreId,
+      })
     },
     [activeStoreId],
   )
 
-  const handleCheckout = useCallback(async () => {
-    if (cart.length === 0) return
-    const now = new Date()
-    const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-    const dayClosure = await db.dayClosures.get(todayYmd)
-    if (dayClosure?.closedAt) {
-      toast.error(
-        'Journée clôturée',
-        'Réouvrez la journée dans le journal de caisse pour encaisser à nouveau.',
+  const cartNeedsCompliance = useMemo(() => {
+    const map = new Map(displayProducts.map((p) => [p.id, p]))
+    return cart.some((line) => {
+      const p = map.get(line.productId)
+      return (
+        !!p?.requiresPrescription || !!p?.trackLots || !!p?.trackSerialNumbers
       )
-      return
-    }
-    if (discountPct > perms.maxDiscountPct) {
-      toast.error(
-        'Remise non autorisée',
-        `Plafond de ${perms.maxDiscountPct} % pour ce profil.`,
-      )
-      return
-    }
+    })
+  }, [cart, displayProducts])
 
-    const totals = totalsFromLinesTTC(cart, discountPct)
-    const totalR = payableTotalTTC
-    const canPayElectronicNow = online && deviceConnectivity.paymentTerminals
-    const payCheck = validateCheckoutPayment(
-      checkoutPayment,
-      totalR,
-      canPayElectronicNow,
-    )
-    if (!payCheck.ok) {
-      toast.error('Paiement incomplet', payCheck.message)
-      return
-    }
-    if (payCheck.split.cash > 0 && !deviceConnectivity.cashDrawer) {
-      toast.warning(
-        'Tiroir-caisse désactivé',
-        'Encaissement poursuivi en un clic.',
-      )
-    }
-    toast.info(
-      'Encaissement en cours',
-      confirmCheckoutSummary(checkoutPayment, payCheck, totalR),
-    )
-    if (checkoutBusy) {
-      return
-    }
-
-    const saleId = crypto.randomUUID()
-    const createdAt = Date.now()
-    const storeName = activeStore?.name
-    const selectedTable = selectedTableId
-      ? diningTables.find((t) => t.id === selectedTableId)
-      : null
-    const kitchenEnabled = isKitchenModuleDemoOn()
-
-    setCheckoutBusy(true)
-    try {
-      const saleRecord: Sale = {
-        id: saleId,
-        createdAt,
-        lines: cart.map((l) => ({
-          productId: l.productId,
-          name: l.name,
-          unitPriceTTC: l.unitPriceTTC,
-          qty: l.qty,
-          vatRatePct: l.vatRatePct,
-        })),
-        subtotalHT: totals.subtotalHT,
-        tva: totals.tva,
-        totalTTC: totals.totalTTC,
-        discountPct,
-        paymentMethod: checkoutPayment.mixed ? 'mixed' : checkoutPayment.method,
-        paymentSplit: payCheck.split,
-        cashReceived: payCheck.cashReceived,
-        changeDue: payCheck.changeDue,
-        cardTpeReference: payCheck.cardTpeReference,
-        mobileMoneyReference: payCheck.mobileMoneyReference,
-        synced: false,
-        storeId: activeStoreId,
-        storeName,
-        tableId: selectedTable?.id,
-        tableName: selectedTable?.name,
-        cashierProfileId: staff.id,
-        cashierDisplayName: staff.displayName,
-        promoCode:
-          appliedPromotionId != null
-            ? promotions.find((p) => p.id === appliedPromotionId)?.code
-            : undefined,
-        loyaltyCustomerId: activeLoyaltyCustomer?.id,
-        loyaltyCustomerPhone: activeLoyaltyCustomer?.phone,
-        loyaltyPointsEarned: Math.floor(totalR / 100),
-        loyaltyPointsRedeemed: loyaltyRedeemPoints,
-        loyaltyDiscountTTC: loyaltyRedeemAmountTTC,
+  const executeCheckout = useCallback(
+    async (compliance?: CheckoutComplianceResult) => {
+      if (cart.length === 0) return
+      const now = new Date()
+      const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const dayClosure = await db.dayClosures.get(todayYmd)
+      if (dayClosure?.closedAt) {
+        toast.error(
+          'Journée clôturée',
+          'Réouvrez la journée dans le journal de caisse pour encaisser à nouveau.',
+        )
+        return
       }
 
-      await db.transaction(
-        'rw',
-        [
-          db.products,
-          db.sales,
-          db.syncQueue,
-          db.storeStocks,
-          db.promotions,
-          db.diningTables,
-          db.onlineOrders,
-          db.kitchenIngredients,
-          db.kitchenIngredientStocks,
-          db.productRecipeIngredients,
-          db.loyaltyCustomers,
-          db.loyaltyTransactions,
-        ],
-        async () => {
-          for (const line of cart) {
-            const p = await db.products.get(line.productId)
-            if (!p || p.archived) {
-              throw new Error(
-                `Article « ${line.name} » indisponible (archivé ou supprimé).`,
-              )
+      const totals = totalsFromLinesTTC(cart, discountPct)
+      const totalR = payableTotalTTC
+      const canPayElectronicNow = online && deviceConnectivity.paymentTerminals
+      const payCheck = validateCheckoutPayment(
+        checkoutPayment,
+        totalR,
+        canPayElectronicNow,
+      )
+      if (!payCheck.ok) {
+        toast.error('Paiement incomplet', payCheck.message)
+        return
+      }
+
+      const payMethod = checkoutPayment.mixed
+        ? 'mixed'
+        : checkoutPayment.method
+      if (payMethod === 'credit') {
+        if (!activeLoyaltyCustomer) {
+          toast.error(
+            'Crédit client',
+            'Saisissez le téléphone d’un client fidélité avec plafond crédit.',
+          )
+          return
+        }
+        if (customerCreditAvailable(activeLoyaltyCustomer) < totalR) {
+          toast.error(
+            'Plafond insuffisant',
+            `Disponible : ${formatFCFA(customerCreditAvailable(activeLoyaltyCustomer))}.`,
+          )
+          return
+        }
+      }
+
+      const metaByProduct = new Map(
+        (compliance?.lineMeta ?? []).map((m) => [m.productId, m]),
+      )
+
+      const saleId = crypto.randomUUID()
+      const createdAt = Date.now()
+      const storeName = activeStore?.name
+      const selectedTable = selectedTableId
+        ? diningTables.find((t) => t.id === selectedTableId)
+        : null
+      const kitchenEnabled = isKitchenModuleDemoOn()
+
+      setCheckoutBusy(true)
+      try {
+        const saleRecord: Sale = {
+          id: saleId,
+          createdAt,
+          lines: cart.map((l) => {
+            const meta = metaByProduct.get(l.productId)
+            return {
+              productId: l.productId,
+              name: l.name,
+              unitPriceTTC: l.unitPriceTTC,
+              qty: l.qty,
+              vatRatePct: l.vatRatePct,
+              lotAllocations: meta?.lotAllocations,
+              serialNumbers: meta?.serialNumbers,
+              imeiNumbers: meta?.imeiNumbers,
             }
-            const rid = storeStockRowId(activeStoreId, line.productId)
-            const row = await db.storeStocks.get(rid)
-            const cur = row?.stock ?? 0
-            if (cur < line.qty) {
-              throw new Error(
-                `Stock insuffisant pour « ${line.name} » (disponible : ${cur}).`,
-              )
+          }),
+          subtotalHT: totals.subtotalHT,
+          tva: totals.tva,
+          totalTTC: totals.totalTTC,
+          discountPct,
+          paymentMethod: checkoutPayment.mixed ? 'mixed' : checkoutPayment.method,
+          paymentSplit: payCheck.split,
+          cashReceived: payCheck.cashReceived,
+          changeDue: payCheck.changeDue,
+          cardTpeReference: payCheck.cardTpeReference,
+          mobileMoneyReference: payCheck.mobileMoneyReference,
+          synced: false,
+          storeId: activeStoreId,
+          storeName,
+          tableId: selectedTable?.id,
+          tableName: selectedTable?.name,
+          cashierProfileId: staff.id,
+          cashierDisplayName: staff.displayName,
+          promoCode:
+            appliedPromotionId != null
+              ? promotions.find((p) => p.id === appliedPromotionId)?.code
+              : undefined,
+          loyaltyCustomerId: activeLoyaltyCustomer?.id,
+          loyaltyCustomerPhone: activeLoyaltyCustomer?.phone,
+          loyaltyPointsEarned: Math.floor(totalR / 100),
+          loyaltyPointsRedeemed: loyaltyRedeemPoints,
+          loyaltyDiscountTTC: loyaltyRedeemAmountTTC,
+        }
+
+        await db.transaction(
+          'rw',
+          [
+            db.products,
+            db.sales,
+            db.syncQueue,
+            db.storeStocks,
+            db.productLots,
+            db.productSerialUnits,
+            db.prescriptions,
+            db.promotions,
+            db.diningTables,
+            db.onlineOrders,
+            db.kitchenIngredients,
+            db.kitchenIngredientStocks,
+            db.productRecipeIngredients,
+            db.loyaltyCustomers,
+            db.loyaltyTransactions,
+            db.customerCreditEntries,
+          ],
+          async () => {
+            for (const line of cart) {
+              const p = await db.products.get(line.productId)
+              if (!p || p.archived) {
+                throw new Error(
+                  `Article « ${line.name} » indisponible (archivé ou supprimé).`,
+                )
+              }
+              const lineMeta = metaByProduct.get(line.productId)
+              const mode = await deductTrackedStockForLine({
+                storeId: activeStoreId,
+                line,
+                meta: lineMeta,
+                saleId,
+                createdAt,
+              })
+              if (mode === 'classic') {
+                const rid = storeStockRowId(activeStoreId, line.productId)
+                const row = await db.storeStocks.get(rid)
+                const cur = row?.stock ?? 0
+                if (cur < line.qty) {
+                  throw new Error(
+                    `Stock insuffisant pour « ${line.name} » (disponible : ${cur}).`,
+                  )
+                }
+                await db.storeStocks.put({
+                  id: rid,
+                  storeId: activeStoreId,
+                  productId: line.productId,
+                  stock: cur - line.qty,
+                })
+              }
             }
-            await db.storeStocks.put({
-              id: rid,
-              storeId: activeStoreId,
-              productId: line.productId,
-              stock: cur - line.qty,
-            })
-          }
 
-          // Déduction stock ingrédients cuisine (recettes par produit).
-          const recipeRows = await db.productRecipeIngredients.toArray()
-          await deductKitchenIngredientStockForLines(activeStoreId, cart, recipeRows)
+            const recipeRows = await db.productRecipeIngredients.toArray()
+            await deductKitchenIngredientStockForLines(
+              activeStoreId,
+              cart,
+              recipeRows,
+            )
 
-          await db.sales.add(saleRecord)
+            await db.sales.add(saleRecord)
 
-          if (kitchenEnabled) {
+            if (payMethod === 'credit' && activeLoyaltyCustomer) {
+              await applyCustomerCreditSale({
+                customerId: activeLoyaltyCustomer.id,
+                amountTTC: totalR,
+                saleId,
+                storeId: activeStoreId,
+                actor: {
+                  profileId: staff.id,
+                  displayName: staff.displayName,
+                },
+              })
+            }
+
+            if (compliance?.prescription) {
+              await db.prescriptions.add({
+                id: crypto.randomUUID(),
+                saleId,
+                storeId: activeStoreId,
+                createdAt,
+                createdByProfileId: staff.id,
+                ...compliance.prescription,
+              })
+            }
+
+            if (kitchenEnabled) {
             const table = selectedTableId
               ? await db.diningTables.get(selectedTableId)
               : null
@@ -1220,56 +1436,104 @@ export function Shell({ staff, online, onLogout }: Props) {
     } finally {
       setCheckoutBusy(false)
     }
+    },
+    [
+      cart,
+      discountPct,
+      checkoutPayment,
+      online,
+      staff,
+      refreshSyncMeta,
+      activeStoreId,
+      activeStore?.name,
+      deviceConnectivity.receiptPrinters,
+      deviceConnectivity.paymentTerminals,
+      toast,
+      appliedPromotionId,
+      selectedTableId,
+      diningTables,
+      payableTotalTTC,
+      promotions,
+      activeLoyaltyCustomer,
+      loyaltyPhoneInput,
+      loyaltyRedeemAmountTTC,
+      loyaltyRedeemPoints,
+    ],
+  )
+
+  const handleCheckout = useCallback(async () => {
+    if (cart.length === 0) return
+    if (discountPct > perms.maxDiscountPct) {
+      toast.error(
+        'Remise non autorisée',
+        `Plafond de ${perms.maxDiscountPct} % pour ce profil.`,
+      )
+      return
+    }
+    const totalR = payableTotalTTC
+    const canPayElectronicNow = online && deviceConnectivity.paymentTerminals
+    const payCheck = validateCheckoutPayment(
+      checkoutPayment,
+      totalR,
+      canPayElectronicNow,
+    )
+    if (!payCheck.ok) {
+      toast.error('Paiement incomplet', payCheck.message)
+      return
+    }
+    if (payCheck.split.cash > 0 && !deviceConnectivity.cashDrawer) {
+      toast.warning(
+        'Tiroir-caisse désactivé',
+        'Encaissement poursuivi en un clic.',
+      )
+    }
+    toast.info(
+      'Encaissement en cours',
+      confirmCheckoutSummary(checkoutPayment, payCheck, totalR),
+    )
+    if (checkoutBusy) return
+    if (cartNeedsCompliance) {
+      setCheckoutComplianceOpen(true)
+      return
+    }
+    await executeCheckout()
   }, [
-    cart,
+    cart.length,
     discountPct,
     perms.maxDiscountPct,
+    payableTotalTTC,
+    online,
+    deviceConnectivity.paymentTerminals,
+    deviceConnectivity.cashDrawer,
     checkoutPayment,
     checkoutBusy,
-    online,
-    staff,
-    refreshSyncMeta,
-    activeStoreId,
-    activeStore?.name,
-    deviceConnectivity.cashDrawer,
-    deviceConnectivity.receiptPrinters,
-    autoPrintReceiptAfterSale,
-    deviceConnectivity.paymentTerminals,
-    pendingCashDrawerBypassUntil,
-    pendingCheckoutUntil,
+    cartNeedsCompliance,
+    executeCheckout,
     toast,
-    appliedPromotionId,
-    selectedTableId,
-    diningTables,
-    payableTotalTTC,
-    promotions,
-    activeLoyaltyCustomer,
-    loyaltyPhoneInput,
-    loyaltyRedeemAmountTTC,
-    loyaltyRedeemPoints,
   ])
+
+  const handleComplianceConfirm = useCallback(
+    (result: CheckoutComplianceResult) => {
+      setCheckoutComplianceOpen(false)
+      void executeCheckout(result)
+    },
+    [executeCheckout],
+  )
 
   const handleLogoutClick = useCallback(() => {
     clearStaffSession()
     onLogout()
   }, [onLogout])
 
+  const isDash = activeView === 'dash'
   const isCaisse = activeView === 'caisse'
   const canAddProductFromCaisse =
     staff.role !== 'caissier' && perms.canManageCatalogFull
   const cartHideClass = 'lg:hidden'
   const cartDesktopClass = 'hidden h-full min-h-0 lg:flex lg:flex-col'
-  const densityTabs = useMemo(
-    () => [
-      { id: 'compact' as const, label: 'Compact' },
-      { id: 'confort' as const, label: 'Confort' },
-    ],
-    [],
-  )
 
   return (
     <div className="caisse-shell flex h-svh max-h-svh w-full max-w-full flex-col overflow-hidden bg-zinc-50">
-      <SubscriptionBanner onOpenSubscription={() => setActiveView('subscription')} />
       <div className="flex min-h-0 min-w-0 flex-1">
       {receiptOpen ? (
         <ReceiptModal
@@ -1291,107 +1555,36 @@ export function Shell({ staff, online, onLogout }: Props) {
           onSave={handleSaveNewProduct}
         />
       ) : null}
-
-      <Sidebar
-        activeView={activeView}
-        onSelectView={handleSelectView}
-        navSections={navSections}
-        ruptureCount={ruptureCount}
-        lowStockCount={lowStockCount}
-        onlineOrdersPending={onlineOrdersPending}
-        stores={stores}
-        activeStoreId={activeStoreId}
-        onActiveStoreChange={setActiveStoreId}
-        canSwitchStore={canSwitchStore}
-        user={{
-          displayName: staff.displayName,
-          initials: staff.initials,
-          role: staff.role,
-        }}
-        onLogout={handleLogoutClick}
-        onOpenSubscription={
-          staff.role === 'admin' || staff.role === 'gerant'
-            ? () => handleSelectView('subscription')
-            : undefined
-        }
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
-      />
-
-      <MobileNavDrawer
-        open={mobileNavOpen}
-        onClose={() => setMobileNavOpen(false)}
-        activeView={activeView}
-        onSelectView={handleSelectView}
-        navSections={navSections}
-        ruptureCount={ruptureCount}
-        lowStockCount={lowStockCount}
-        onlineOrdersPending={onlineOrdersPending}
-        stores={stores}
-        activeStoreId={activeStoreId}
-        onActiveStoreChange={setActiveStoreId}
-        canSwitchStore={canSwitchStore}
-        user={{
-          displayName: staff.displayName,
-          initials: staff.initials,
-          role: staff.role,
-        }}
-        onLogout={handleLogoutClick}
-        onOpenSubscription={
-          staff.role === 'admin' || staff.role === 'gerant'
-            ? () => {
-                handleSelectView('subscription')
-                setMobileNavOpen(false)
-              }
-            : undefined
-        }
-      />
-
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {checkoutComplianceOpen ? (
+        <CheckoutComplianceModal
+          cart={cart}
+          products={displayProducts}
+          storeId={activeStoreId}
+          onClose={() => setCheckoutComplianceOpen(false)}
+          onConfirm={handleComplianceConfirm}
+        />
+      ) : null}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
         <Topbar
           view={activeView}
           online={online}
           syncLabel={syncLabel}
           syncBusy={syncBusy}
           onSyncNow={handleSyncNow}
-          onOpenMobileMenu={() => setMobileNavOpen(true)}
-          rightSlot={
-            <>
-              {staff.role === 'admin' || staff.role === 'gerant' ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="hidden sm:inline-flex"
-                  onClick={() => handleSelectView('subscription')}
-                >
-                  Mon abonnement
-                </Button>
-              ) : null}
-              {isCaisse ? (
-                <>
-                  <Tabs
-                    variant="segmented"
-                    items={densityTabs}
-                    active={productGridDensity}
-                    onChange={setProductGridDensity}
-                    className="hidden sm:inline-flex"
-                  />
-                  <Select
-                    value={productGridDensity}
-                    onChange={(e) =>
-                      setProductGridDensity(e.target.value as ProductGridDensity)
-                    }
-                    className="h-9 w-[7.5rem] shrink-0 text-[12px] sm:hidden"
-                    aria-label="Densité grille produits"
-                  >
-                    <option value="compact">Compact</option>
-                    <option value="confort">Confort</option>
-                  </Select>
-                </>
-              ) : null}
-            </>
+          onLogout={handleLogoutClick}
+          onOpenModules={() => handleSelectView('dash')}
+          stores={stores}
+          activeStoreId={activeStoreId}
+          onActiveStoreChange={setActiveStoreId}
+          canSwitchStore={canSwitchStore}
+          productGridDensity={isCaisse ? productGridDensity : undefined}
+          onProductGridDensityChange={
+            isCaisse ? setProductGridDensity : undefined
           }
+          navSections={navSections}
+          onSelectView={handleSelectView}
         />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {!online ? <OfflineBanner /> : null}
 
         {isCaisse ? (
@@ -1414,10 +1607,10 @@ export function Shell({ staff, online, onLogout }: Props) {
               />
               {ruptureCount > 0 ? (
                 <div
-                  className={`mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${
+                  className={`mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-[0_12px_28px_-22px_rgba(23,32,51,0.28)] ${
                     perms.canManageStocks
-                      ? 'border-rose-200/80 bg-[linear-gradient(135deg,#fff5f5,#fffefb)] text-rose-900'
-                      : 'border-amber-200/80 bg-[linear-gradient(135deg,#fffbeb,#fffefb)] text-amber-900'
+                      ? 'border-rose-200/80 bg-[linear-gradient(135deg,#fff7f7,#f7f8fc)] text-rose-900'
+                      : 'border-amber-200/80 bg-[linear-gradient(135deg,#fffbeb,#f7f8fc)] text-amber-900'
                   }`}
                   role="alert"
                 >
@@ -1478,6 +1671,7 @@ export function Shell({ staff, online, onLogout }: Props) {
                 onLoyaltyRedeemPointsChange={setLoyaltyRedeemInput}
                 loyaltyRedeemAmountTTC={loyaltyRedeemAmountTTC}
                 payableTotalTTC={payableTotalTTC}
+                creditAvailableTTC={creditAvailableTTC}
                 payment={checkoutPayment}
                 onPaymentPatch={patchCheckoutPayment}
                 online={online}
@@ -1485,6 +1679,7 @@ export function Shell({ staff, online, onLogout }: Props) {
                 receiptPrinterEnabled={deviceConnectivity.receiptPrinters}
                 onInc={handleInc}
                 onDec={handleDec}
+                onSetQty={handleSetQty}
                 onRemove={handleRemove}
                 onClear={handleClear}
                 onCancelTransaction={handleCancelCartTransaction}
@@ -1496,18 +1691,28 @@ export function Shell({ staff, online, onLogout }: Props) {
             </div>
           </div>
         ) : (
-          <div className="ui-scroll app-main-pad min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-safe pt-3 sm:pt-4">
+          <div className="module-canvas ui-scroll app-main-pad min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-safe pt-3 sm:pt-4">
             <div className="mx-auto w-full max-w-[1680px] px-1 sm:px-2 lg:px-4">
             <Suspense
               fallback={
-                <div className="flex min-h-[40vh] items-center justify-center text-sm text-zinc-500">
-                  Chargement du module...
+                <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-sm text-ink-subtle">
+                  <span className="h-9 w-9 animate-spin rounded-full border-2 border-caisse-gold/25 border-t-caisse-gold" />
+                  Chargement du module…
                 </div>
               }
             >
-              {activeView === 'dash' ? (
-                <DashboardView
-                  onOpenOnlineOrders={() => handleSelectView('onlineOrders')}
+              {isDash ? (
+                <DashboardNavGrid
+                  sections={navSections}
+                  onSelectView={handleSelectView}
+                  ruptureCount={ruptureCount}
+                  lowStockCount={lowStockCount}
+                  onlineOrdersPending={onlineOrdersPending}
+                  staffName={staff.displayName}
+                  storeName={activeStore?.name ?? 'Magasin'}
+                  storeId={activeStoreId}
+                  online={online}
+                  dayClosed={!!dayClosureToday?.closedAt}
                 />
               ) : null}
               {activeView === 'catalogue' ? (
@@ -1519,7 +1724,7 @@ export function Shell({ staff, online, onLogout }: Props) {
                     profileId: staff.id,
                     displayName: staff.displayName,
                   }}
-                  onAddClick={() => setAddProductOpen(true)}
+                  onSaveNewProduct={handleSaveNewProduct}
                 />
               ) : null}
               {activeView === 'stocks' ? (
@@ -1593,6 +1798,301 @@ export function Shell({ staff, online, onLogout }: Props) {
                   }
                 />
               ) : null}
+              {activeView === 'devis' ? (
+                <DevisView
+                  canManage={perms.canEditPrices || staff.role === 'gerant'}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                  onLoadToCart={(lines, meta) => {
+                    setCart(
+                      lines.map((l) => ({
+                        productId: l.productId,
+                        name: l.name,
+                        unitPriceTTC: l.unitPriceTTC,
+                        qty: l.qty,
+                        vatRatePct: l.vatRatePct ?? DEFAULT_VAT_RATE_PCT,
+                      })),
+                    )
+                    if (meta.customerPhone) {
+                      setLoyaltyPhoneInput(meta.customerPhone)
+                    }
+                    setActiveView('caisse')
+                    toast.success(
+                      'Devis chargé',
+                      `${meta.customerName} · panier prêt`,
+                    )
+                  }}
+                />
+              ) : null}
+              {activeView === 'achats' ? (
+                <AchatsView
+                  canManage={perms.canManageStocks}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'sav' ? (
+                <SavView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canManageStocks
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'credits' ? (
+                <CreditsView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'inventairePhysique' ? (
+                <InventairePhysiqueView
+                  canManage={perms.canManageStocks}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'peremptions' ? (
+                <PeremptionsView
+                  canManage={perms.canManageStocks}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'livraisons' ? (
+                <LivraisonsView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canManageStocks
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'location' ? (
+                <LocationView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canManageStocks
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'carte' ? (
+                <CarteView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                />
+              ) : null}
+              {activeView === 'cadeaux' ? (
+                <CadeauxView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'rdv' ? (
+                <RdvView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'tarifs' ? (
+                <TarifsView canManage={perms.canEditPrices} />
+              ) : null}
+              {activeView === 'retoursFournisseur' ? (
+                <RetoursFournisseurView
+                  canManage={perms.canManageStocks}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'production' ? (
+                <ProductionView
+                  canManage={perms.canManageStocks}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'bl' ? (
+                <BlView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'depenses' ? (
+                <DepensesView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canDailyClosure
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'retoursClient' ? (
+                <RetoursClientView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canManageStocks
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'consignes' ? (
+                <ConsignesView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'ordonnances' ? (
+                <OrdonnancesView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'chantiers' ? (
+                <ChantiersView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'abonnements' ? (
+                <AbonnementsView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'haccp' ? (
+                <HaccpView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canManageStocks
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'vip' ? (
+                <VipView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'commissions' ? (
+                <CommissionsView
+                  canManage={staff.role === 'admin' || staff.role === 'gerant'}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'misesDeCote' ? (
+                <MisesDeCoteView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'pertes' ? (
+                <PertesView
+                  canManage={perms.canManageStocks}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'allergenes' ? (
+                <AllergenesView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'evenements' ? (
+                <EvenementsView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'reprises' ? (
+                <ReprisesView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'protocoles' ? (
+                <ProtocolesView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'cave' ? (
+                <CaveView
+                  canManage={perms.canManageStocks}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'magistrales' ? (
+                <MagistralesView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canManageStocks
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
               {activeView === 'onlineOrders' ? (
                 <OnlineOrdersValidationView
                   online={online}
@@ -1649,10 +2149,8 @@ export function Shell({ staff, online, onLogout }: Props) {
                   canResetData={staff.role === 'admin'}
                   organizationName={organization?.name ?? ''}
                   onOpenIntegrations={() => handleSelectView('integrations')}
-                  onOpenSubscription={() => handleSelectView('subscription')}
                 />
               ) : null}
-              {activeView === 'subscription' ? <SubscriptionView /> : null}
               {activeView === 'network' ? (
                 <MultiStoreView
                   canConfigureStores={perms.canConfigureStoresAdmin}
@@ -1683,12 +2181,12 @@ export function Shell({ staff, online, onLogout }: Props) {
                 )}
                 aria-label={`Ouvrir le panier, ${cartItemCount} article${cartItemCount > 1 ? 's' : ''}, ${formatFCFA(payableTotalTTC)}`}
               >
-                <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[rgba(184,146,46,0.22)] bg-caisse-gold-soft text-caisse-gold">
-                  <IconReceipt className="h-4 w-4 text-amber-600" />
+                <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[rgba(0,51,170,0.22)] bg-caisse-gold-soft text-caisse-gold">
+                  <IconReceipt className="h-4 w-4 text-caisse-gold" />
                   <span
                     ref={mobileFabBadgeRef}
                     className={cn(
-                      'absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#fffefb] bg-caisse-gold px-1 text-[10px] font-bold text-white',
+                      'absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#f7f8fc] bg-caisse-gold px-1 text-[10px] font-bold text-white',
                       mobileCartPulse && 'caisse-mobile-cart-badge--pulse',
                     )}
                   >
@@ -1718,7 +2216,7 @@ export function Shell({ staff, online, onLogout }: Props) {
                 <span className="caisse-mobile-cart-cta inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-2 text-[11px] font-semibold shadow-sm sm:gap-1.5 sm:px-3.5 sm:text-[12px]">
                   <span className="sm:hidden">Voir</span>
                   <span className="hidden sm:inline">Voir le panier</span>
-                  <IconArrowRight className="h-3.5 w-3.5 text-amber-600" />
+                  <IconArrowRight className="h-3.5 w-3.5 text-caisse-gold" />
                 </span>
               </button>
             ) : null}
@@ -1729,11 +2227,11 @@ export function Shell({ staff, online, onLogout }: Props) {
                 ref={mobileFabEmptyRef}
                 type="button"
                 onClick={() => setIsFloatingCartOpen(true)}
-                className={`fixed-safe-bottom fixed z-30 flex h-12 w-12 items-center justify-center rounded-2xl border border-[rgba(184,146,46,0.28)] bg-[linear-gradient(145deg,#fffefb,#f7f0e3)] text-caisse-gold shadow-(--shadow-caisse-pop) transition hover:brightness-[1.03] ${cartHideClass}`}
+                className={`fixed-safe-bottom fixed z-30 flex h-12 w-12 items-center justify-center rounded-2xl border border-[rgba(0,51,170,0.28)] bg-[linear-gradient(145deg,#f7f8fc,#e8eefa)] text-caisse-gold shadow-(--shadow-caisse-pop) transition hover:brightness-[1.03] ${cartHideClass}`}
                 style={{ right: 'max(0.75rem, env(safe-area-inset-right, 0px))' }}
                 aria-label="Ouvrir le panier"
               >
-                <IconReceipt className="h-5 w-5 text-amber-600" />
+                <IconReceipt className="h-5 w-5 text-caisse-gold" />
               </button>
             ) : null}
 
@@ -1752,7 +2250,7 @@ export function Shell({ staff, online, onLogout }: Props) {
                   onClick={() => setIsFloatingCartOpen(false)}
                 />
                 <div className="absolute inset-y-0 right-0 flex w-full max-h-svh animate-ui-slide-up flex-col pt-[env(safe-area-inset-top,0px)] sm:w-[min(420px,92vw)]">
-                  <div className="caisse-drawer-panel flex min-h-0 h-full min-w-0 flex-col border-l border-[rgba(184,146,46,0.2)] bg-[#fffefb] shadow-(--shadow-overlay)">
+                  <div className="caisse-drawer-panel flex min-h-0 h-full min-w-0 flex-col border-l border-[rgba(0,51,170,0.2)] bg-[#f7f8fc] shadow-(--shadow-overlay)">
                     <CartPanel
                       lines={cart}
                       products={displayProducts}
@@ -1777,6 +2275,7 @@ export function Shell({ staff, online, onLogout }: Props) {
                       onLoyaltyRedeemPointsChange={setLoyaltyRedeemInput}
                       loyaltyRedeemAmountTTC={loyaltyRedeemAmountTTC}
                       payableTotalTTC={payableTotalTTC}
+                      creditAvailableTTC={creditAvailableTTC}
                       payment={checkoutPayment}
                       onPaymentPatch={patchCheckoutPayment}
                       online={online}
@@ -1784,6 +2283,7 @@ export function Shell({ staff, online, onLogout }: Props) {
                       receiptPrinterEnabled={deviceConnectivity.receiptPrinters}
                       onInc={handleInc}
                       onDec={handleDec}
+                      onSetQty={handleSetQty}
                       onRemove={handleRemove}
                       onClear={handleClear}
                       onCancelTransaction={handleCancelCartTransaction}
@@ -1799,6 +2299,7 @@ export function Shell({ staff, online, onLogout }: Props) {
             ) : null}
           </>
         ) : null}
+        </div>
       </div>
       </div>
     </div>

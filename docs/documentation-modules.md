@@ -1,4 +1,4 @@
-# Référence des modules — CaisseCI
+# Référence des modules — Nora
 
 Guide fonctionnel écran par écran. Pour l’installation et l’API, voir [documentation-technique.md](documentation-technique.md).
 

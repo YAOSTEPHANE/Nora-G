@@ -15,10 +15,6 @@ import {
 import { connectToplinkPrinter } from '../lib/printer/toplinkSerial'
 import { buildBrowserReceiptHtml } from '../lib/printer/browserReceiptHtml'
 import {
-  getCachedReceiptLogoUrl,
-  resolveReceiptLogoUrl,
-} from '../lib/receiptLogo'
-import {
   getReceiptBusinessName,
   receiptDocumentLabel,
 } from '../lib/receiptBusinessName'
@@ -98,33 +94,8 @@ function onlineOrderStatusLabel(status: OnlineOrder['status']): string {
   }
 }
 
-/** Emballe le logo en data URL pour que l’iframe d’impression le voie sans réseau. */
-async function resolveLogoDataUrl(src: string): Promise<string | null> {
-  try {
-    if (src.startsWith('data:image/')) return src
-    const url = /^https?:\/\//i.test(src)
-      ? src
-      : new URL(src, window.location.origin).href
-    const res = await fetch(url)
-    if (!res.ok) return null
-    const blob = await res.blob()
-    if (!blob.type.startsWith('image/')) return null
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(String(reader.result))
-      reader.onerror = () => reject(reader.error ?? new Error('read failed'))
-      reader.readAsDataURL(blob)
-    })
-  } catch {
-    return null
-  }
-}
-
 export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
   const toast = useToast()
-  const [receiptLogoSrc, setReceiptLogoSrc] = useState<string | null>(() =>
-    getCachedReceiptLogoUrl(),
-  )
   const autoPrintedReceiptRef = useRef<string | null>(null)
   const [printing, setPrinting] = useState(false)
   const [serialBusy, setSerialBusy] = useState(false)
@@ -197,15 +168,6 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
       return
     }
 
-    const resolvedLogo =
-      (await resolveReceiptLogoUrl()) ?? receiptLogoSrc
-    if (resolvedLogo && resolvedLogo !== receiptLogoSrc) {
-      setReceiptLogoSrc(resolvedLogo)
-    }
-    const logoDataUrl = resolvedLogo
-      ? await resolveLogoDataUrl(resolvedLogo)
-      : null
-
     const html = buildBrowserReceiptHtml({
       sale,
       businessName,
@@ -215,7 +177,6 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
       amounts: amt,
       ticketInvoice,
       paperWidth: '58mm',
-      logoSrc: logoDataUrl,
     })
 
     const cleanup = () => {
@@ -283,7 +244,6 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
     businessName,
     documentLabel,
     dtLabel,
-    receiptLogoSrc,
     sale,
     ticketInvoice,
     toast,
@@ -335,17 +295,6 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
 
   const printReceiptRef = useRef(printReceipt)
   printReceiptRef.current = printReceipt
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      const logo = await resolveReceiptLogoUrl()
-      if (!cancelled) setReceiptLogoSrc(logo)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     if (!autoPrint) return
@@ -457,14 +406,6 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
     >
       <div id="print-receipt" className="space-y-4 text-zinc-800">
         <header className="border-b border-dashed border-zinc-200 pb-3 text-center">
-          {receiptLogoSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={receiptLogoSrc}
-              alt=""
-              className="mx-auto mb-2 h-14 w-14 object-contain"
-            />
-          ) : null}
           <p className="text-lg font-bold tracking-tight text-zinc-900">
             {businessName}
           </p>

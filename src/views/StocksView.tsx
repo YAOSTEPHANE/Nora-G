@@ -14,6 +14,9 @@ import type {
 } from '../db/types'
 import { downloadTextFile, toCsvSemicolon } from '../lib/analyticsExport'
 import { formatFCFA } from '../lib/money'
+import { getAppSettings } from '../lib/appSettings'
+import { featuresForDomain } from '../lib/businessDomain'
+import { productBelongsToDomain } from '../lib/domainCatalog'
 import { productIsActive } from '../lib/productFilters'
 import { storeStockRowId } from '../lib/storeStockId'
 import {
@@ -31,6 +34,7 @@ import { enqueueStockSync } from '../lib/sync'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { Card, CardContent } from '../ui/Card'
+import { FormGrid, FormPanel } from '../ui/Form'
 import { cn } from '../ui/cn'
 import { EmptyState } from '../ui/EmptyState'
 import { Field, Input, Select } from '../ui/Input'
@@ -47,12 +51,14 @@ import {
   IconSearch,
   IconStocks,
 } from '../ui/icons'
+import { ProductLotsPanel } from '../components/stocks/ProductLotsPanel'
+import { ProductSerialsPanel } from '../components/stocks/ProductSerialsPanel'
 
 type Props = { isAdmin: boolean; auditActor: AuditActor }
 
 type StockFilter = 'tous' | 'rupture' | 'alerte' | 'ok'
 type StockScope = 'catalogue' | 'cuisine'
-type CatalogueSubTab = 'articles' | 'mouvements'
+type CatalogueSubTab = 'articles' | 'mouvements' | 'lots' | 'series'
 type StockSortKey = 'urgency' | 'name' | 'stock-asc' | 'stock-desc' | 'price-desc'
 
 function urgency(p: ProductWithStock): number {
@@ -64,6 +70,8 @@ function urgency(p: ProductWithStock): number {
 export function StocksView({ isAdmin, auditActor }: Props) {
   const { activeStoreId, activeStore } = useActiveStore()
   const toast = useToast()
+  const domain = getAppSettings().businessDomain
+  const domainFeatures = featuresForDomain(domain)
   const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
   const stockRows =
     useLiveQuery(
@@ -85,6 +93,10 @@ export function StocksView({ isAdmin, auditActor }: Props) {
       [],
     ) ?? []
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all')
+  const [locName, setLocName] = useState('')
+  const [locCode, setLocCode] = useState('')
+  const [locBusy, setLocBusy] = useState(false)
+  const [showArchivedIngredients, setShowArchivedIngredients] = useState(false)
   const mergedProducts = useMemo((): ProductWithStock[] => {
     const m =
       selectedLocationId === 'all'
@@ -94,8 +106,10 @@ export function StocksView({ isAdmin, auditActor }: Props) {
               .filter((r) => r.locationId === selectedLocationId)
               .map((r) => [r.productId, r.stock]),
           )
-    return products.map((p) => ({ ...p, stock: m.get(p.id) ?? 0 }))
-  }, [products, stockRows, locationStocks, selectedLocationId])
+    return products
+      .filter((p) => productBelongsToDomain(p, domain))
+      .map((p) => ({ ...p, stock: m.get(p.id) ?? 0 }))
+  }, [products, stockRows, locationStocks, selectedLocationId, domain])
   const [showArchived, setShowArchived] = useState(false)
   const [filter, setFilter] = useState<StockFilter>('tous')
   const [stockScope, setStockScope] = useState<StockScope>('catalogue')
@@ -233,10 +247,21 @@ export function StocksView({ isAdmin, auditActor }: Props) {
       .slice(0, 20)
   }, [auditRows, activeStoreId])
 
-  const kitchenRows = useMemo(
-    () => mergeKitchenIngredientRows(kitchenIngredients, kitchenIngredientStocks, activeStoreId),
-    [kitchenIngredients, kitchenIngredientStocks, activeStoreId],
-  )
+  const kitchenRows = useMemo(() => {
+    const rows = mergeKitchenIngredientRows(
+      kitchenIngredients,
+      kitchenIngredientStocks,
+      activeStoreId,
+    )
+    return showArchivedIngredients
+      ? rows
+      : rows.filter((row) => !row.archived)
+  }, [
+    kitchenIngredients,
+    kitchenIngredientStocks,
+    activeStoreId,
+    showArchivedIngredients,
+  ])
   const kitchenStats = useMemo(() => kitchenIngredientStats(kitchenRows), [kitchenRows])
   const linkedProductIds = useMemo(
     () => new Set(kitchenRows.map((row) => row.productId).filter(Boolean)),
@@ -576,6 +601,88 @@ export function StocksView({ isAdmin, auditActor }: Props) {
     toast.success('Ingrédient ajouté', name)
   }, [activeStoreId, ingredientName, ingredientStock, ingredientThreshold, ingredientUnit, toast])
 
+  const archiveKitchenIngredient = useCallback(
+    async (ingredientId: string, archived: boolean) => {
+      await db.kitchenIngredients.update(ingredientId, { archived })
+      toast.success(
+        archived ? 'Ingrédient archivé' : 'Ingrédient réactivé',
+      )
+    },
+    [toast],
+  )
+
+  const addStockLocation = useCallback(async () => {
+    const name = locName.trim()
+    const code = locCode.trim().toUpperCase().slice(0, 8)
+    if (!name || !code) {
+      toast.error('Nom et code requis')
+      return
+    }
+    const dup = stockLocations.some(
+      (l) => l.code.toLowerCase() === code.toLowerCase(),
+    )
+    if (dup) {
+      toast.error('Code déjà utilisé')
+      return
+    }
+    setLocBusy(true)
+    try {
+      const maxSort = stockLocations.reduce((m, l) => Math.max(m, l.sortOrder), -1)
+      await db.stockLocations.add({
+        id: crypto.randomUUID(),
+        storeId: activeStoreId,
+        name,
+        code,
+        sortOrder: maxSort + 1,
+        active: true,
+      })
+      setLocName('')
+      setLocCode('')
+      toast.success('Emplacement ajouté', name)
+    } finally {
+      setLocBusy(false)
+    }
+  }, [activeStoreId, locCode, locName, stockLocations, toast])
+
+  const renameStockLocation = useCallback(
+    async (id: string, current: string) => {
+      const next = window.prompt('Nouveau nom d’emplacement', current)
+      if (next == null || !next.trim()) return
+      await db.stockLocations.update(id, { name: next.trim() })
+      toast.success('Emplacement renommé', next.trim())
+    },
+    [toast],
+  )
+
+  const setLocationActive = useCallback(
+    async (id: string, active: boolean) => {
+      await db.stockLocations.update(id, { active })
+      if (!active && selectedLocationId === id) setSelectedLocationId('all')
+      toast.success(active ? 'Emplacement activé' : 'Emplacement désactivé')
+    },
+    [selectedLocationId, toast],
+  )
+
+  const deleteStockLocation = useCallback(
+    async (id: string, name: string) => {
+      const stocks = await db.locationStocks.where('locationId').equals(id).toArray()
+      if (stocks.some((s) => s.stock > 0)) {
+        toast.error(
+          'Emplacement non vide',
+          'Videz le stock ou désactivez-le.',
+        )
+        return
+      }
+      const ok = window.confirm(`Supprimer l’emplacement « ${name} » ?`)
+      if (!ok) return
+      await db.locationStocks.where('locationId').equals(id).delete()
+      await db.stockLocations.delete(id)
+      if (selectedLocationId === id) setSelectedLocationId('all')
+      toast.success('Emplacement supprimé', name)
+    },
+    [selectedLocationId, toast],
+  )
+
   const adjustKitchenIngredient = useCallback(
     async (ingredientId: string, delta: number) => {
       const row = kitchenRows.find((x) => x.id === ingredientId)
@@ -718,17 +825,35 @@ export function StocksView({ isAdmin, auditActor }: Props) {
     toast.success('Export mouvements prêt', `${stockMovements.length} ligne(s)`)
   }, [stockMovements, activeStore?.shortCode, activeStoreId, toast])
 
-  const scopeTabs = useMemo(
-    () => [
-      { id: 'catalogue' as const, label: 'Produits catalogue' },
-      {
-        id: 'cuisine' as const,
+  const scopeTabs = useMemo(() => {
+    const tabs: {
+      id: StockScope
+      label: string
+      count?: number
+    }[] = [{ id: 'catalogue', label: 'Produits catalogue' }]
+    if (domainFeatures.kitchen) {
+      tabs.push({
+        id: 'cuisine',
         label: 'Ingrédients cuisine',
         count: kitchenRows.length > 0 ? kitchenRows.length : undefined,
-      },
-    ],
-    [kitchenRows.length],
-  )
+      })
+    }
+    return tabs
+  }, [domainFeatures.kitchen, kitchenRows.length])
+
+  useEffect(() => {
+    if (!domainFeatures.kitchen && stockScope === 'cuisine') {
+      setStockScope('catalogue')
+    }
+  }, [domainFeatures.kitchen, stockScope])
+
+  useEffect(() => {
+    if (catalogueSubTab === 'lots' && !domainFeatures.lots) {
+      setCatalogueSubTab('articles')
+    } else if (catalogueSubTab === 'series' && !domainFeatures.serials) {
+      setCatalogueSubTab('articles')
+    }
+  }, [catalogueSubTab, domainFeatures.lots, domainFeatures.serials])
 
   const filterTabs = useMemo(
     () => [
@@ -741,10 +866,11 @@ export function StocksView({ isAdmin, auditActor }: Props) {
   )
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="module-page">
       <PageHeader
+        icon={<IconStocks />}
         eyebrow={`Magasin · ${activeStore?.name ?? '—'}`}
-        title="Stocks"
+        title="Inventaire"
         subtitle={
           stockScope === 'cuisine'
             ? 'Matières premières et ingrédients utilisés en cuisine (recettes)'
@@ -894,6 +1020,13 @@ export function StocksView({ isAdmin, auditActor }: Props) {
                     Lier produit
                   </Button>
                 </div>
+                <Switch
+                  checked={showArchivedIngredients}
+                  onChange={(e) =>
+                    setShowArchivedIngredients(e.target.checked)
+                  }
+                  label="Afficher les archivés"
+                />
                 {kitchenRows.length === 0 ? (
                   <EmptyState
                     title="Aucun ingrédient cuisine"
@@ -959,6 +1092,15 @@ export function StocksView({ isAdmin, auditActor }: Props) {
                               onClick={() => void adjustKitchenIngredient(row.id, 1)}
                             >
                               +1
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                void archiveKitchenIngredient(row.id, !row.archived)
+                              }
+                            >
+                              {row.archived ? 'Réactiver' : 'Archiver'}
                             </Button>
                           </div>
                         </div>
@@ -1049,8 +1191,12 @@ export function StocksView({ isAdmin, auditActor }: Props) {
         )
       ) : (
         <>
-      <Card>
-        <CardContent className="grid gap-2 sm:grid-cols-2">
+      <FormPanel
+        eyebrow="Inventaire"
+        title="Emplacement actif"
+        description="Ajustements, inventaires rapides et réappro s’appliquent à l’emplacement choisi, puis le total magasin est recalculé."
+      >
+        <FormGrid>
           <Field label="Emplacement de stock actif">
             <Select
               value={selectedLocationId}
@@ -1064,12 +1210,82 @@ export function StocksView({ isAdmin, auditActor }: Props) {
               ))}
             </Select>
           </Field>
-          <div className="rounded-lg border border-border bg-surface-sunken/70 px-3 py-2 text-[12px] text-ink-muted">
-            Ajustements, inventaires rapides et réappro bulk s’appliquent à
-            l’emplacement sélectionné, puis le total magasin est recalculé.
-          </div>
-        </CardContent>
-      </Card>
+        </FormGrid>
+      </FormPanel>
+
+      {isAdmin ? (
+        <FormPanel
+          eyebrow="Dépôts"
+          title="Emplacements"
+          description="Créez une réserve, un bar ou un autre dépôt."
+          actions={
+            <Button
+              variant="accent"
+              loading={locBusy}
+              onClick={() => void addStockLocation()}
+            >
+              Ajouter
+            </Button>
+          }
+        >
+          <FormGrid>
+            <Field label="Nom" required>
+              <Input
+                value={locName}
+                onChange={(e) => setLocName(e.target.value)}
+                placeholder="Réserve, Bar…"
+              />
+            </Field>
+            <Field label="Code" required>
+              <Input
+                value={locCode}
+                onChange={(e) => setLocCode(e.target.value)}
+                maxLength={8}
+                className="uppercase"
+              />
+            </Field>
+          </FormGrid>
+          <ul className="mt-4 space-y-1">
+            {stockLocations.map((loc) => (
+              <li
+                key={loc.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-[12px]"
+              >
+                <span className={loc.active ? 'text-ink' : 'text-ink-subtle'}>
+                  {loc.name}{' '}
+                  <span className="font-mono-nums text-ink-subtle">
+                    ({loc.code})
+                  </span>
+                  {loc.active ? '' : ' · inactif'}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void renameStockLocation(loc.id, loc.name)}
+                  >
+                    Renommer
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void setLocationActive(loc.id, !loc.active)}
+                  >
+                    {loc.active ? 'Désactiver' : 'Activer'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void deleteStockLocation(loc.id, loc.name)}
+                  >
+                    Supprimer
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </FormPanel>
+      ) : null}
 
       <div className="catalogue-hero p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
@@ -1122,10 +1338,26 @@ export function StocksView({ isAdmin, auditActor }: Props) {
             label: 'Mouvements',
             count: stockMovements.length > 0 ? stockMovements.length : undefined,
           },
+          ...(domainFeatures.lots
+            ? [{ id: 'lots' as const, label: 'Lots (DLC)' }]
+            : []),
+          ...(domainFeatures.serials
+            ? [{ id: 'series' as const, label: 'Séries / IMEI' }]
+            : []),
         ]}
       />
 
-      {catalogueSubTab === 'articles' ? (
+      {catalogueSubTab === 'lots' ? (
+        <ProductLotsPanel
+          storeId={activeStoreId}
+          storeLabel={activeStore?.name ?? activeStoreId}
+        />
+      ) : catalogueSubTab === 'series' ? (
+        <ProductSerialsPanel
+          storeId={activeStoreId}
+          storeLabel={activeStore?.name ?? activeStoreId}
+        />
+      ) : catalogueSubTab === 'articles' ? (
         <>
       {isAdmin ? (
         <Card>

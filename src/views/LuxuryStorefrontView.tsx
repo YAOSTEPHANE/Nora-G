@@ -951,7 +951,7 @@ export function LuxuryStorefrontView({
                 onClick={onOpenOwnerSpace}
                 className="rounded-lg bg-stone-900 px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-stone-800"
               >
-                ← Espace abonnement
+                ← Espace propriétaire
               </button>
               <button
                 type="button"

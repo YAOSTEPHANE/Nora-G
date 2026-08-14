@@ -1,4 +1,4 @@
-# Documentation technique — CaisseCI
+# Documentation technique — Nora
 
 Guide pour développeurs, intégrateurs et DevOps.
 
@@ -53,7 +53,7 @@ Guide pour développeurs, intégrateurs et DevOps.
 ## 3. Structure du projet
 
 ```
-CaisseCI/
+Nora/
 ├── prisma/schema.prisma      # Schéma MongoDB
 ├── server/
 │   ├── server.ts             # Point d’entrée Express
@@ -165,7 +165,7 @@ Fichiers : `server/lib/ownerAuth.ts`, `src/lib/subscription/ownerAuth.ts`.
 ### Staff (caisse)
 
 - Profils locaux Dexie avec **PIN** à 4 chiffres.
-- Session : `src/auth/session.ts` (`caisseci-staff-session`).
+- Session : `src/auth/session.ts` (`Nora-staff-session`).
 - Rôles : `caissier`, `gerant`, `admin` — permissions dans `src/auth/permissions.ts`.
 
 ---
@@ -275,12 +275,12 @@ Si le frontend est hébergé séparément, définir `VITE_API_BASE_URL` au build
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| POST | `/caisseci/sync` | Réception lot sync ventes/stocks (abonnement actif) |
-| GET | `/caisseci/sync/pull` | Téléchargement deltas cloud (abonnement actif) |
+| POST | `/Nora/sync` | Réception lot sync ventes/stocks (abonnement actif) |
+| GET | `/Nora/sync/pull` | Téléchargement deltas cloud (abonnement actif) |
 | GET | `/uploads/status` | État stockage Blob |
 | POST | `/uploads/product-image` | Upload photo produit |
 | POST | `/webhooks/orders` | Commandes partenaires |
-| POST | `/webhooks/caisseci` | Webhook historique |
+| POST | `/webhooks/Nora` | Webhook historique |
 | POST | `/webhooks/sms` | Accusés SMS |
 
 ### Santé
@@ -343,8 +343,8 @@ Client : `src/lib/sync.ts` (push) et `src/lib/cloudPull.ts` (pull).
 
 | Opération | Route | Helper client |
 |-----------|-------|---------------|
-| Push file locale | `POST /api/caisseci/sync` | `cloudSyncPushUrl()` |
-| Pull deltas | `GET /api/caisseci/sync/pull?since=<ts>` | `apiUrl('/caisseci/sync/pull')` |
+| Push file locale | `POST /api/Nora/sync` | `cloudSyncPushUrl()` |
+| Pull deltas | `GET /api/Nora/sync/pull?since=<ts>` | `apiUrl('/Nora/sync/pull')` |
 
 **Configuration :**
 
@@ -384,11 +384,11 @@ Configuration : `src/lib/integrationsConfig.ts` (localStorage).
 
 Clés :
 
-- `caisseci-device-order-terminals`
-- `caisseci-device-receipt-printers`
-- `caisseci-device-kds-screens`
-- `caisseci-device-cash-drawer`
-- `caisseci-device-payment-terminals`
+- `Nora-device-order-terminals`
+- `Nora-device-receipt-printers`
+- `Nora-device-kds-screens`
+- `Nora-device-cash-drawer`
+- `Nora-device-payment-terminals`
 
 Logique checkout : `src/lib/checkoutPayment.ts`, `src/components/CartPanel.tsx`.
 
@@ -500,7 +500,7 @@ Aucune variable `VITE_API_BASE_URL` requise.
 
 | Niveau | UI | Usage |
 |--------|-----|-------|
-| **Plateforme** | `/admin` | Commerçants paient l’abonnement CaisseCI |
+| **Plateforme** | `/admin` | Commerçants paient l’abonnement Nora |
 | **Boutique** | Intégrations → Wave & Orange | Clients paient le commerçant en ligne |
 
 ---

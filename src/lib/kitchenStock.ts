@@ -26,7 +26,6 @@ export function mergeKitchenIngredientRows(
       .map((row) => [row.ingredientId, row.stock]),
   )
   return ingredients
-    .filter((ing) => !ing.archived)
     .map((ing) => ({
       ...ing,
       stock: stockByIngredient.get(ing.id) ?? 0,

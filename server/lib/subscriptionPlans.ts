@@ -52,16 +52,16 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, PlanDefinition> = {
   business: {
     id: 'business',
     name: 'Business',
-    description: 'Multi-sites, CRM, RH et intégrations partenaires.',
-    priceFcfa: 49_900,
-    maxStores: 20,
-    maxStaff: 50,
+    description: 'Accès complet — tous les modules (sans abonnement).',
+    priceFcfa: 0,
+    maxStores: 0,
+    maxStaff: 0,
     features: [
       'Tout Pro',
       'Multi-magasins & transferts',
       'CRM clients & gestion RH',
       'Intégrations & webhooks',
-      '20 magasins · 50 utilisateurs',
+      'Magasins & utilisateurs illimités',
     ],
   },
 }
@@ -91,21 +91,12 @@ export function parseStatus(value: string | undefined): SubscriptionStatus {
   return 'expired'
 }
 
+/** Système d’abonnement retiré : toujours utilisable. */
 export function isSubscriptionUsable(
-  status: SubscriptionStatus,
-  periodEnd: Date | null,
-  trialEndsAt: Date | null = null,
-  now = new Date(),
+  _status: SubscriptionStatus,
+  _periodEnd: Date | null,
+  _trialEndsAt: Date | null = null,
+  _now = new Date(),
 ): boolean {
-  const nowMs = now.getTime()
-  if (status === 'trialing') {
-    return Boolean(trialEndsAt && trialEndsAt.getTime() > nowMs)
-  }
-  if (status === 'active') {
-    return periodEnd == null || periodEnd.getTime() > nowMs
-  }
-  if (status === 'past_due' || status === 'canceled') {
-    return Boolean(periodEnd && periodEnd.getTime() > nowMs)
-  }
-  return false
+  return true
 }

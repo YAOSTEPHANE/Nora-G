@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import type { Product, ProductCategory } from '../db/types'
+import type { Product, ProductCategory, SaleUnit } from '../db/types'
+import { SALE_UNIT_OPTIONS } from '../db/types'
 import { db } from '../db/db'
 import { DEFAULT_VAT_RATE_PCT } from '../lib/money'
+import { getAppSettings } from '../lib/appSettings'
+import { featuresForDomain } from '../lib/businessDomain'
+import { categorySelectOptionsForDomain } from '../lib/domainCatalog'
 import {
   normalizeProductDescription,
   normalizeProductHighlights,
 } from '../lib/productDescription'
 import { resolveProductImageFields, type ProductImageFields } from '../lib/uploads/blob'
 import { Button } from '../ui/Button'
-import { cn } from '../ui/cn'
+import { FormChip, FormSection, FormSwitchRow } from '../ui/Form'
 import { IconTrash } from '../ui/icons'
 import { Field, Input, Select, Textarea } from '../ui/Input'
 import { Modal } from '../ui/Modal'
+import { Switch } from '../ui/Switch'
 
 const VAT_PRESETS = [0, 9, 18] as const
 const MAX_IMAGE_BYTES = 500 * 1024
@@ -26,6 +31,7 @@ type Props = {
   onSave: (product: Product, stockAtActiveStore: number) => Promise<void>
   /** Suppression définitive (double confirmation côté parent). */
   onDelete?: () => void
+  variant?: 'overlay' | 'page'
 }
 
 export function EditProductModal({
@@ -36,7 +42,13 @@ export function EditProductModal({
   onClose,
   onSave,
   onDelete,
+  variant = 'overlay',
 }: Props) {
+  const activeDomain = getAppSettings().businessDomain
+  const domainFeatures = featuresForDomain(activeDomain)
+  const showMetierBlock =
+    domainFeatures.prescription || domainFeatures.lots || domainFeatures.serials
+  const showHardwareBlock = domainFeatures.fractionalUnits
   const categoryRows =
     useLiveQuery(
       () => db.productCategories.orderBy('sortOrder').toArray(),
@@ -44,13 +56,16 @@ export function EditProductModal({
       [],
     ) ?? []
   const categoryOptions = useMemo(() => {
-    const names = categoryRows.map((r) => r.name)
+    const names = categorySelectOptionsForDomain(
+      activeDomain,
+      categoryRows.map((r) => r.name),
+    )
     const cur = product.category?.trim()
     if (cur && !names.some((n) => n.toLowerCase() === cur.toLowerCase())) {
       return [cur, ...names]
     }
     return names
-  }, [categoryRows, product.category])
+  }, [activeDomain, categoryRows, product.category])
   const optionsForSelect =
     categoryOptions.length > 0
       ? categoryOptions
@@ -77,6 +92,25 @@ export function EditProductModal({
   const [highlightsText, setHighlightsText] = useState(
     (product.highlights ?? []).join('\n'),
   )
+  const [requiresPrescription, setRequiresPrescription] = useState(
+    !!product.requiresPrescription,
+  )
+  const [trackLots, setTrackLots] = useState(!!product.trackLots)
+  const [trackSerialNumbers, setTrackSerialNumbers] = useState(
+    !!product.trackSerialNumbers,
+  )
+  const [saleUnit, setSaleUnit] = useState<SaleUnit>(product.saleUnit ?? 'piece')
+  const [allowFractionalQty, setAllowFractionalQty] = useState(
+    !!product.allowFractionalQty,
+  )
+  const [packContentQty, setPackContentQty] = useState(
+    product.packContentQty != null ? String(product.packContentQty) : '',
+  )
+  const [packContentLabel, setPackContentLabel] = useState(
+    product.packContentLabel ?? '',
+  )
+  const [brand, setBrand] = useState(product.brand ?? '')
+  const [supplierRef, setSupplierRef] = useState(product.supplierRef ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -94,6 +128,17 @@ export function EditProductModal({
     setImagePreview(product.imageDataUrl ?? product.imageUrl)
     setDescription(product.description ?? '')
     setHighlightsText((product.highlights ?? []).join('\n'))
+    setRequiresPrescription(!!product.requiresPrescription)
+    setTrackLots(!!product.trackLots)
+    setTrackSerialNumbers(!!product.trackSerialNumbers)
+    setSaleUnit(product.saleUnit ?? 'piece')
+    setAllowFractionalQty(!!product.allowFractionalQty)
+    setPackContentQty(
+      product.packContentQty != null ? String(product.packContentQty) : '',
+    )
+    setPackContentLabel(product.packContentLabel ?? '')
+    setBrand(product.brand ?? '')
+    setSupplierRef(product.supplierRef ?? '')
   }, [product, stockAtActiveStore])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,7 +147,7 @@ export function EditProductModal({
     const price = canEditPrices
       ? Number.parseInt(priceTTC.replace(/\s/g, ''), 10)
       : product.priceTTC
-    const st = Number.parseInt(stock, 10)
+    const st = Number.parseFloat(stock.replace(/\s/g, '').replace(',', '.'))
     const th = Number.parseInt(lowTh, 10)
     if (!name.trim()) return setErr('Indiquez un nom de produit.')
     if (canEditPrices && (!Number.isFinite(price) || price < 0))
@@ -118,7 +163,24 @@ export function EditProductModal({
       }
     }
     if (!barcode.trim()) return setErr('Indiquez un code-barres.')
-    if (!Number.isFinite(st) || st < 0) return setErr('Stock invalide.')
+    if (trackLots && trackSerialNumbers) {
+      return setErr('Choisissez lots OU séries, pas les deux.')
+    }
+    if (trackSerialNumbers && allowFractionalQty) {
+      return setErr('Quantités décimales incompatibles avec le suivi série.')
+    }
+    let packQty: number | undefined
+    const packRaw = packContentQty.replace(/\s/g, '').trim()
+    if (packRaw !== '') {
+      packQty = Number.parseFloat(packRaw.replace(',', '.'))
+      if (!Number.isFinite(packQty) || packQty <= 0) {
+        return setErr('Contenu du conditionnement invalide.')
+      }
+    }
+    const stockManagedByTracking = trackLots || trackSerialNumbers
+    if (!stockManagedByTracking) {
+      if (!Number.isFinite(st) || st < 0) return setErr('Stock invalide.')
+    }
     if (!Number.isFinite(th) || th < 0) return setErr('Seuil invalide.')
     const vat = Number.parseFloat(vatRatePct.replace(',', '.'))
     if (!Number.isFinite(vat) || vat < 0 || vat > 100)
@@ -132,7 +194,24 @@ export function EditProductModal({
       lowStockThreshold: th,
       vatRatePct: Math.round(vat * 100) / 100,
       archived: product.archived,
+      businessDomain: product.businessDomain ?? activeDomain,
+      requiresPrescription,
+      trackLots,
+      trackSerialNumbers,
+      saleUnit,
+      allowFractionalQty: allowFractionalQty && !trackSerialNumbers,
     }
+    if (packQty !== undefined) next.packContentQty = packQty
+    else delete next.packContentQty
+    const packLabel = packContentLabel.trim()
+    if (packLabel) next.packContentLabel = packLabel
+    else delete next.packContentLabel
+    const brandTrim = brand.trim()
+    if (brandTrim) next.brand = brandTrim
+    else delete next.brand
+    const refTrim = supplierRef.trim()
+    if (refTrim) next.supplierRef = refTrim
+    else delete next.supplierRef
     const desc = normalizeProductDescription(description)
     const highlights = normalizeProductHighlights(highlightsText)
     if (desc) next.description = desc
@@ -163,7 +242,7 @@ export function EditProductModal({
       delete next.imageDataUrl
       delete next.imageUrl
       Object.assign(next, imageFields)
-      await onSave(next, st)
+      await onSave(next, stockManagedByTracking ? stockAtActiveStore : st)
       onClose()
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : 'Enregistrement impossible.')
@@ -175,6 +254,8 @@ export function EditProductModal({
   return (
     <Modal
       open
+      variant={variant}
+      size="xl"
       onClose={onClose}
       title="Modifier l’article"
       subtitle={`Stock affiché pour ${activeStoreLabel}`}
@@ -205,11 +286,40 @@ export function EditProductModal({
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <Field label="Nom" required>
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <form onSubmit={handleSubmit}>
+        <FormSection
+          title="Identité"
+          description="Nom, code et classification dans le catalogue."
+        >
+          <Field label="Nom" required className="sm:col-span-2">
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="Code-barres" required>
+            <Input
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              className="font-mono-nums"
+            />
+          </Field>
+          <Field label="Catégorie" required>
+            <Select
+              value={category}
+              onChange={(e) =>
+                setCategory(e.target.value as ProductCategory)
+              }
+            >
+              {optionsForSelect.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </FormSection>
+        <FormSection
+          title="Tarifs"
+          description="Prix TTC, coût de revient et TVA."
+        >
           <Field label="Prix TTC (FCFA)">
             <Input
               inputMode="numeric"
@@ -231,46 +341,17 @@ export function EditProductModal({
               className="font-mono-nums"
             />
           </Field>
-        </div>
-        <Field label="Code-barres" required>
-          <Input
-            value={barcode}
-            onChange={(e) => setBarcode(e.target.value)}
-            className="font-mono-nums"
-          />
-        </Field>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Catégorie" required>
-            <Select
-              value={category}
-              onChange={(e) =>
-                setCategory(e.target.value as ProductCategory)
-              }
-            >
-              {optionsForSelect.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="TVA (%)" required>
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-1">
+          <Field label="TVA (%)" required className="sm:col-span-2">
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap gap-1.5">
                 {VAT_PRESETS.map((v) => (
-                  <button
+                  <FormChip
                     key={v}
-                    type="button"
+                    active={String(v) === vatRatePct.trim()}
                     onClick={() => setVatRatePct(String(v))}
-                    className={cn(
-                      'rounded-md border px-2.5 py-1 text-[12px] font-semibold transition',
-                      String(v) === vatRatePct.trim()
-                        ? 'border-zinc-900 bg-zinc-900 text-white'
-                        : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300',
-                    )}
                   >
                     {v} %
-                  </button>
+                  </FormChip>
                 ))}
               </div>
               <Input
@@ -281,77 +362,198 @@ export function EditProductModal({
               />
             </div>
           </Field>
-        </div>
-        <Field
-          label="Description boutique"
-          hint="Visible sur la fiche produit en ligne (max 1000 car.)"
+        </FormSection>
+        <FormSection
+          title="Boutique"
+          description="Fiche visible en ligne — photo, texte et arguments."
+          columns={1}
         >
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={4}
-            maxLength={1000}
-            placeholder="Ex. Poulet braisé mariné 24h, grillé au charbon, servi avec attiéké et sauce oignon…"
-          />
-        </Field>
-        <Field
-          label="Points forts"
-          hint="Un par ligne — affichés en puces sur la boutique (max 5)"
-        >
-          <Textarea
-            value={highlightsText}
-            onChange={(e) => setHighlightsText(e.target.value)}
-            rows={3}
-            placeholder={'Portion généreuse\nGrillé au charbon\nSauce maison'}
-          />
-        </Field>
-        <Field label="Photo" hint="Max 500 Ko · Vercel Blob si configuré">
-          <input
-            type="file"
-            accept="image/*"
-            className="block w-full text-[12px] text-zinc-600 file:mr-2 file:rounded-md file:border file:border-zinc-200 file:bg-zinc-50 file:px-3 file:py-1.5 file:text-[12px] file:font-semibold file:text-zinc-700"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (!f) return
-              if (f.size > MAX_IMAGE_BYTES) {
-                setErr('Image trop volumineuse (max 500 Ko).')
-                e.target.value = ''
-                return
-              }
-              setErr(null)
-              const r = new FileReader()
-              r.onload = () => {
-                const url =
-                  typeof r.result === 'string' ? r.result : undefined
-                setImagePreview(url)
-              }
-              r.readAsDataURL(f)
-            }}
-          />
-          {imagePreview ? (
-            <div className="mt-2 flex items-center gap-3">
-              <img
-                src={imagePreview}
-                alt=""
-                className="h-14 w-14 rounded-lg border border-zinc-200 object-cover"
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setImagePreview(undefined)}
+          <Field
+            label="Description boutique"
+            hint="Visible sur la fiche produit en ligne (max 1000 car.)"
+          >
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              maxLength={1000}
+              placeholder="Ex. Poulet braisé mariné 24h, grillé au charbon, servi avec attiéké et sauce oignon…"
+            />
+          </Field>
+          <Field
+            label="Points forts"
+            hint="Un par ligne — affichés en puces sur la boutique (max 5)"
+          >
+            <Textarea
+              value={highlightsText}
+              onChange={(e) => setHighlightsText(e.target.value)}
+              rows={3}
+              placeholder={'Portion généreuse\nGrillé au charbon\nSauce maison'}
+            />
+          </Field>
+          <Field label="Photo" hint="Max 500 Ko · Vercel Blob si configuré">
+            <input
+              type="file"
+              accept="image/*"
+              className="ui-file"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (!f) return
+                if (f.size > MAX_IMAGE_BYTES) {
+                  setErr('Image trop volumineuse (max 500 Ko).')
+                  e.target.value = ''
+                  return
+                }
+                setErr(null)
+                const r = new FileReader()
+                r.onload = () => {
+                  const url =
+                    typeof r.result === 'string' ? r.result : undefined
+                  setImagePreview(url)
+                }
+                r.readAsDataURL(f)
+              }}
+            />
+            {imagePreview ? (
+              <div className="mt-3 flex items-center gap-3">
+                <img
+                  src={imagePreview}
+                  alt=""
+                  className="h-16 w-16 rounded-2xl border border-[rgba(0,51,170,0.12)] object-cover"
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setImagePreview(undefined)}
+                >
+                  Retirer
+                </Button>
+              </div>
+            ) : null}
+          </Field>
+        </FormSection>
+        {showMetierBlock ? (
+          <FormSection
+            title="Métier"
+            description="Traçabilité, ordonnance et obligations du rayon."
+            columns={1}
+          >
+            {domainFeatures.prescription ? (
+              <FormSwitchRow label="Ordonnance obligatoire">
+                <Switch
+                  checked={requiresPrescription}
+                  onChange={(e) => setRequiresPrescription(e.target.checked)}
+                />
+              </FormSwitchRow>
+            ) : null}
+            {domainFeatures.lots ? (
+              <FormSwitchRow label="Suivi par lots (n° lot + DLC)">
+                <Switch
+                  checked={trackLots}
+                  onChange={(e) => {
+                    const v = e.target.checked
+                    setTrackLots(v)
+                    if (v) setTrackSerialNumbers(false)
+                  }}
+                />
+              </FormSwitchRow>
+            ) : null}
+            {domainFeatures.serials ? (
+              <FormSwitchRow label="Suivi n° série / IMEI">
+                <Switch
+                  checked={trackSerialNumbers}
+                  onChange={(e) => {
+                    const v = e.target.checked
+                    setTrackSerialNumbers(v)
+                    if (v) {
+                      setTrackLots(false)
+                      setAllowFractionalQty(false)
+                    }
+                  }}
+                />
+              </FormSwitchRow>
+            ) : null}
+          </FormSection>
+        ) : null}
+        {showHardwareBlock ? (
+          <FormSection
+            title="Conditionnement"
+            description="Unités de vente, vrac et références fournisseur."
+          >
+            <Field label="Unité de vente">
+              <Select
+                value={saleUnit}
+                onChange={(e) => setSaleUnit(e.target.value as SaleUnit)}
               >
-                Retirer
-              </Button>
-            </div>
-          ) : null}
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Stock (ce magasin)" required>
+                {SALE_UNIT_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <FormSwitchRow label="Quantités décimales (m, kg, L…)">
+              <Switch
+                checked={allowFractionalQty}
+                disabled={trackSerialNumbers}
+                onChange={(e) => setAllowFractionalQty(e.target.checked)}
+              />
+            </FormSwitchRow>
+            <Field label="Contenu conditionnement" hint="ex. 100">
+              <Input
+                inputMode="decimal"
+                value={packContentQty}
+                onChange={(e) => setPackContentQty(e.target.value)}
+                placeholder="—"
+                className="font-mono-nums"
+              />
+            </Field>
+            <Field label="Libellé contenu" hint="ex. vis, clous">
+              <Input
+                value={packContentLabel}
+                onChange={(e) => setPackContentLabel(e.target.value)}
+                placeholder="—"
+              />
+            </Field>
+            <Field label="Marque">
+              <Input
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                placeholder="—"
+              />
+            </Field>
+            <Field label="Réf. fournisseur">
+              <Input
+                value={supplierRef}
+                onChange={(e) => setSupplierRef(e.target.value)}
+                placeholder="—"
+                className="font-mono-nums"
+              />
+            </Field>
+          </FormSection>
+        ) : null}
+        <FormSection
+          title="Stock"
+          description="Quantité magasin et seuil d’alerte."
+        >
+          <Field
+            label="Stock (ce magasin)"
+            required={!trackLots && !trackSerialNumbers}
+            hint={
+              trackLots
+                ? 'Géré dans Inventaire → Lots'
+                : trackSerialNumbers
+                  ? 'Géré dans Inventaire → Séries'
+                  : undefined
+            }
+          >
             <Input
               inputMode="numeric"
               value={stock}
               onChange={(e) => setStock(e.target.value)}
               className="font-mono-nums"
+              readOnly={trackLots || trackSerialNumbers}
+              disabled={trackLots || trackSerialNumbers}
             />
           </Field>
           <Field label="Alerte stock" required>
@@ -362,9 +564,9 @@ export function EditProductModal({
               className="font-mono-nums"
             />
           </Field>
-        </div>
+        </FormSection>
         {err ? (
-          <p className="rounded-md bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700">
+          <p className="mt-4 rounded-2xl bg-rose-50 px-3.5 py-2.5 text-[12px] font-medium text-rose-700">
             {err}
           </p>
         ) : null}

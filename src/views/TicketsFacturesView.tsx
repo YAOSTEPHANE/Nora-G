@@ -14,6 +14,7 @@ import { DEFAULT_VAT_RATE_PCT, formatFCFA, totalsFromLinesTTC } from '../lib/mon
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { Card, CardContent } from '../ui/Card'
+import { FormGrid, FormPanel } from '../ui/Form'
 import { EmptyState } from '../ui/EmptyState'
 import { Field, Input, Select } from '../ui/Input'
 import { Kpi } from '../ui/Kpi'
@@ -429,10 +430,11 @@ export function TicketsFacturesView({
   }
 
   return (
-    <div className="space-y-4 pb-6 sm:space-y-5">
+    <div className="module-page">
       <PageHeader
+        icon={<IconReceipt />}
         eyebrow="Facturation"
-        title="Tickets & factures"
+        title="Factures"
         subtitle={
           canViewAllDocuments
             ? `Création, émission, suivi des paiements — ${activeStoreLabel}`
@@ -494,8 +496,42 @@ export function TicketsFacturesView({
       />
 
       {viewTab === 'create' ? (
-      <Card>
-        <CardContent className="grid gap-2.5 md:grid-cols-3">
+      <FormPanel
+        eyebrow="Document"
+        title={editingId ? 'Modifier le document' : 'Nouveau document'}
+        description="Ticket ou facture, client et lignes de facturation."
+        actions={
+          <>
+            <Button variant="accent" onClick={() => void saveDraft()}>
+              {editingId ? 'Mettre à jour' : 'Enregistrer brouillon'}
+            </Button>
+            {editingId ? (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setEditingId(null)
+                  setEditingStatus(null)
+                  setCustomerName('')
+                  setCustomerPhone('')
+                  setDueAt('')
+                  setNotes('')
+                  setLines([
+                    {
+                      name: '',
+                      qty: '1',
+                      unitPriceTTC: '',
+                      vatRatePct: String(DEFAULT_VAT_RATE_PCT),
+                    },
+                  ])
+                }}
+              >
+                Annuler édition
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        <FormGrid columns={3}>
           <Field label="Type">
             <Select
               value={kind}
@@ -515,13 +551,18 @@ export function TicketsFacturesView({
           <Field label="Échéance (optionnel)">
             <Input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
           </Field>
-          <Field label="Note" className="md:col-span-2">
+          <Field label="Note" className="lg:col-span-2">
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Conditions, détails…" />
           </Field>
+        </FormGrid>
+        <div className="mt-5 space-y-3">
+          <header className="ui-form-section-head">
+            <h4>Lignes</h4>
+          </header>
           {lines.map((line, idx) => (
             <div
               key={idx}
-              className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:col-span-3 md:grid-cols-12"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-12"
             >
               <Input
                 className="sm:col-span-2 md:col-span-5"
@@ -588,43 +629,16 @@ export function TicketsFacturesView({
               </div>
             </div>
           ))}
-          <div className="md:col-span-3 flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <Button variant="secondary" onClick={() => setLines((prev) => [...prev, { name: '', qty: '1', unitPriceTTC: '', vatRatePct: String(DEFAULT_VAT_RATE_PCT) }])}>
               Ajouter ligne
             </Button>
-            <span className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-600">
-              Total: <strong className="font-mono-nums text-zinc-900">{formatFCFA(totals.totalTTC)}</strong>
+            <span className="rounded-xl border border-[rgba(0,51,170,0.12)] bg-[#f7f8fc] px-3 py-2 text-sm text-ink-muted">
+              Total: <strong className="font-mono-nums text-ink">{formatFCFA(totals.totalTTC)}</strong>
             </span>
-            <Button variant="accent" className="w-full sm:w-auto" onClick={() => void saveDraft()}>
-              {editingId ? 'Mettre à jour' : 'Enregistrer brouillon'}
-            </Button>
-            {editingId ? (
-              <Button
-                variant="ghost"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  setEditingId(null)
-                  setEditingStatus(null)
-                  setCustomerName('')
-                  setCustomerPhone('')
-                  setDueAt('')
-                  setNotes('')
-                  setLines([
-                    {
-                      name: '',
-                      qty: '1',
-                      unitPriceTTC: '',
-                      vatRatePct: String(DEFAULT_VAT_RATE_PCT),
-                    },
-                  ])
-                }}
-              >
-                Annuler édition
-              </Button>
-            ) : null}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </FormPanel>
       ) : null}
 
       {viewTab === 'ventes' ? (

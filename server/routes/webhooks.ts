@@ -182,9 +182,10 @@ webhookRouter.post('/webhooks/orders', requireWebhookToken, async (req, res) => 
   }
 })
 
-webhookRouter.post('/webhooks/caisseci', requireWebhookToken, async (req, res) => {
+// Webhook générique Nora.
+webhookRouter.post('/webhooks/nora', requireWebhookToken, async (req, res) => {
   try {
-    const eventId = await storeWebhookEvent(req.body, 'caisseci')
+    const eventId = await storeWebhookEvent(req.body, 'nora')
     return res.status(201).json({
       ok: true,
       webhookEventId: eventId,

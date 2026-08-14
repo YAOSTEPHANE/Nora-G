@@ -1,7 +1,5 @@
-'use client'
-
-import { SubscriptionScreen } from '../../src/screens/SubscriptionScreen'
+import { redirect } from 'next/navigation'
 
 export default function AbonnementPage() {
-  return <SubscriptionScreen />
+  redirect('/staff')
 }

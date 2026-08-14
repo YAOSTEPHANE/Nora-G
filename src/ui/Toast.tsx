@@ -3,7 +3,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -185,10 +184,4 @@ export function useConfirmDialog() {
     void message
     return true
   }, [])
-}
-
-export function ToastBridge() {
-  // Permet de mémoriser un useEffect global si besoin futur.
-  useEffect(() => {}, [])
-  return null
 }

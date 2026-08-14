@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Canonicalise les e-mails Organisation (Gmail) et résout les doublons
  * avant d’appliquer l’index unique sur `email`.
  *
@@ -60,7 +60,7 @@ async function main() {
       }
 
       // Doublon : e-mail unique hors Gmail pour libérer la contrainte
-      const quarantineEmail = `dup.${org.id}@caisseci.invalid`
+      const quarantineEmail = `dup.${org.id}@nora.invalid`
       await prisma.organization.update({
         where: { id: org.id },
         data: {

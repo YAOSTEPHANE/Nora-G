@@ -1,28 +1,18 @@
 import type { Organization } from '@prisma/client'
-import {
-  SUBSCRIPTION_PLANS,
-  isSubscriptionUsable,
-  parsePlanId,
-  parseStatus,
-  type PlanId,
-} from './subscriptionPlans.js'
+import { parsePlanId, type PlanId } from './subscriptionPlans.js'
 import { prisma } from './prisma.js'
 
-export function orgSubscriptionUsable(org: Organization): boolean {
-  return isSubscriptionUsable(
-    parseStatus(org.status),
-    org.currentPeriodEnd,
-    org.trialEndsAt,
-  )
+/** Accès toujours accordé — système d’abonnement retiré. */
+export function orgSubscriptionUsable(_org: Organization): boolean {
+  return true
 }
 
 export function orgPlan(org: Organization): PlanId {
   return parsePlanId(org.planId)
 }
 
-export function planLimits(org: Organization): { maxStaff: number; maxStores: number } {
-  const plan = SUBSCRIPTION_PLANS[orgPlan(org)]
-  return { maxStaff: plan.maxStaff, maxStores: plan.maxStores }
+export function planLimits(_org: Organization): { maxStaff: number; maxStores: number } {
+  return { maxStaff: 0, maxStores: 0 }
 }
 
 export async function countActiveStaff(organizationId: string): Promise<number> {
@@ -32,21 +22,12 @@ export async function countActiveStaff(organizationId: string): Promise<number> 
 }
 
 export async function assertStaffQuota(
-  org: Organization,
-  additional = 1,
+  _org: Organization,
+  _additional = 1,
 ): Promise<string | null> {
-  const { maxStaff } = planLimits(org)
-  if (maxStaff <= 0) return null
-  const active = await countActiveStaff(org.id)
-  if (active + additional > maxStaff) {
-    return `Limite d’utilisateurs atteinte (${maxStaff}). Passez à un plan supérieur.`
-  }
   return null
 }
 
-export function assertSubscriptionActive(org: Organization): string | null {
-  if (!orgSubscriptionUsable(org)) {
-    return 'Abonnement expiré ou inactif. Renouvelez votre plan pour continuer.'
-  }
+export function assertSubscriptionActive(_org: Organization): string | null {
   return null
 }

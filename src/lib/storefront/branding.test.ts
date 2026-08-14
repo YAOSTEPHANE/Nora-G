@@ -229,8 +229,8 @@ describe('storefrontDisplayName / accent', () => {
     expect(storefrontDisplayName(undefined, 'Org Légale')).toBe('Org Légale')
   })
 
-  it('fallback amber', () => {
-    expect(storefrontAccentColor(undefined)).toBe('#B8922E')
+  it('fallback bleu marque', () => {
+    expect(storefrontAccentColor(undefined)).toBe('#0033AA')
     expect(storefrontAccentColor({ primaryColor: '#FF5500' })).toBe('#FF5500')
   })
 })

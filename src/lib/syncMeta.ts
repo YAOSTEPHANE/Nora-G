@@ -1,4 +1,4 @@
-const KEY = 'caisseci-last-cloud-sync-at'
+﻿const KEY = 'nora-last-cloud-sync-at'
 
 export function getLastSyncTimestamp(): number | null {
   try {

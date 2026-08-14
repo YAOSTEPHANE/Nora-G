@@ -1,4 +1,4 @@
-# Documentation utilisateur — CaisseCI
+# Documentation utilisateur — Nora
 
 Guide d’utilisation pour les gérants, caissiers et administrateurs.
 
@@ -6,7 +6,7 @@ Guide d’utilisation pour les gérants, caissiers et administrateurs.
 
 ## 1. Vue d’ensemble
 
-**Caisse CI** est une caisse enregistreuse et une plateforme de gestion magasin **offline-first**, adaptée aux commerces en Côte d’Ivoire.
+**Nora** est une caisse enregistreuse et une plateforme de gestion magasin **offline-first**, adaptée aux commerces en Côte d’Ivoire.
 
 ### Ce que l’application couvre
 
@@ -334,7 +334,7 @@ Dans **Intégrations > API partenaires** :
 
 ## 13. Mode hors ligne
 
-CaisseCI fonctionne **sans connexion internet** :
+Nora fonctionne **sans connexion internet** :
 
 - Caisse et données locales via IndexedDB
 - Licence en cache **7 jours** sans réseau
@@ -387,7 +387,7 @@ Un bandeau « Hors ligne » s’affiche en haut de l’écran quand le réseau e
 
 ## 17. Utilisation sur mobile et tablette
 
-CaisseCI est une **PWA** installable et s’adapte aux petits écrans :
+Nora est une **PWA** installable et s’adapte aux petits écrans :
 
 | Élément | Comportement |
 |---------|--------------|
@@ -407,7 +407,7 @@ CaisseCI est une **PWA** installable et s’adapte aux petits écrans :
 
 ## 18. Support
 
-Pour toute question commerciale ou technique, contactez **Caisse CI**.
+Pour toute question commerciale ou technique, contactez **Nora**.
 
 Documentation technique (développeurs) : [documentation-technique.md](documentation-technique.md)  
 Référence modules : [documentation-modules.md](documentation-modules.md)

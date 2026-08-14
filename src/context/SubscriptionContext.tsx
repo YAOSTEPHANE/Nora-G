@@ -10,12 +10,10 @@ import {
 } from 'react'
 import type { NavViewId } from '../navigation'
 import { ROUTES } from '../lib/siteRoutes'
-import { refreshSubscription, verifyMobileMoneyPayment } from '../lib/subscription/api'
+import { refreshSubscription } from '../lib/subscription/api'
 import { pullCloudData } from '../lib/cloudPull'
-import { planAtLeast, viewAllowedByPlan } from '../lib/subscription/plans'
 import {
   clearOrganizationCredentials,
-  effectiveUsable,
   getCachedSubscription,
   getOrganizationCredentials,
   setCachedSubscription,
@@ -56,8 +54,9 @@ export function SubscriptionProvider({
   )
 
   const applySnapshot = useCallback((snap: SubscriptionSnapshot) => {
-    setSubscription(snap)
-    setCachedSubscription(snap)
+    const unlocked = { ...snap, usable: true, planId: 'business' as const }
+    setSubscription(unlocked)
+    setCachedSubscription(unlocked)
     const creds = {
       licenseKey: snap.licenseKey,
       sessionToken: snap.sessionToken,
@@ -77,7 +76,7 @@ export function SubscriptionProvider({
       applySnapshot(snap)
     } catch {
       const cached = getCachedSubscription()
-      if (cached) setSubscription(cached)
+      if (cached) setSubscription({ ...cached, usable: true })
     }
   }, [applySnapshot])
 
@@ -89,7 +88,7 @@ export function SubscriptionProvider({
       const cached = getCachedSubscription()
       if (!cancelled) {
         setOrganization(creds)
-        setSubscription(cached)
+        setSubscription(cached ? { ...cached, usable: true } : null)
         setReady(true)
       }
 
@@ -101,7 +100,9 @@ export function SubscriptionProvider({
         if (!cancelled) void pullCloudData().catch(() => undefined)
       } catch {
         const cachedSnap = getCachedSubscription()
-        if (!cancelled && cachedSnap) setSubscription(cachedSnap)
+        if (!cancelled && cachedSnap) {
+          setSubscription({ ...cachedSnap, usable: true })
+        }
       }
     }
 
@@ -119,37 +120,11 @@ export function SubscriptionProvider({
     return () => window.clearInterval(id)
   }, [online, organization, refresh])
 
-  useEffect(() => {
-    const creds = getOrganizationCredentials()
-    if (!creds || typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('subscription') !== 'success') return
-    const tx = params.get('tx')?.trim()
-
-    void (async () => {
-      try {
-        if (tx) {
-          const result = await verifyMobileMoneyPayment(creds.licenseKey, tx)
-          if (result.status === 'accepted') {
-            await refresh()
-          }
-        } else {
-          await refresh()
-        }
-      } finally {
-        params.delete('subscription')
-        params.delete('tx')
-        const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`
-        window.history.replaceState({}, '', next)
-      }
-    })()
-  }, [refresh])
-
   const completeOnboarding = useCallback(
     (snap: SubscriptionSnapshot) => {
       applySnapshot(snap)
       // Recharge l'application afin que Dexie ouvre la base isolée de l'organisation.
-      window.location.assign(ROUTES.subscription)
+      window.location.assign(ROUTES.staff)
     },
     [applySnapshot],
   )
@@ -160,7 +135,7 @@ export function SubscriptionProvider({
     setSubscription(null)
   }, [])
 
-  const usable = effectiveUsable(subscription, online)
+  const usable = Boolean(organization)
 
   const value = useMemo<SubscriptionContextValue>(
     () => ({
@@ -172,25 +147,8 @@ export function SubscriptionProvider({
       completeOnboarding,
       refresh,
       disconnect,
-      canAccessView: (view: NavViewId) => {
-        if (view === 'subscription') return true
-        if (!subscription) return false
-        const freeWhenExpired: NavViewId[] = [
-          'caisse',
-          'dash',
-          'catalogue',
-          'stocks',
-          'journal',
-          'pointage',
-          'personnel',
-        ]
-        if (!usable) return freeWhenExpired.includes(view)
-        return viewAllowedByPlan(view, subscription.planId)
-      },
-      hasPlan: (planId: PlanId) => {
-        if (!subscription) return false
-        return planAtLeast(subscription.planId, planId)
-      },
+      canAccessView: () => true,
+      hasPlan: () => true,
     }),
     [
       ready,

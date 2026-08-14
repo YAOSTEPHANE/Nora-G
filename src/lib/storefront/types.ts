@@ -353,5 +353,5 @@ export function storefrontAccentColor(
   branding: StorefrontBranding | undefined,
 ): string {
   const color = branding?.primaryColor?.trim()
-  return color && HEX_COLOR_RE.test(color) ? color : '#B8922E'
+  return color && HEX_COLOR_RE.test(color) ? color : '#0033AA'
 }

@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
-  <rect width="640" height="640" fill="#0f766e"/>
-  <rect x="250" y="120" width="140" height="380" rx="40" fill="#99f6e4"/>
-  <rect x="288" y="90" width="64" height="48" rx="12" fill="#5eead4"/>
-  <text x="320" y="570" text-anchor="middle" fill="#ccfbf1" font-size="44" font-family="DM Sans, Arial">Boissons</text>
-</svg>

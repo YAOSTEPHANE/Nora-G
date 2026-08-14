@@ -1,8 +1,8 @@
-/** Identifiant d’exploitation affiché sur reçus et rapports (démo). */
+﻿/** Identifiant d’exploitation affiché sur reçus et rapports (démo). */
 export const SESSION_ID = '0035'
 
-const KEY_TERMINAL_ID = 'caisseci-terminal-id'
-const KEY_TERMINAL_LABEL = 'caisseci-terminal-label'
+const KEY_TERMINAL_ID = 'nora-terminal-id'
+const KEY_TERMINAL_LABEL = 'nora-terminal-label'
 
 export function getOrCreateTerminalId(): string {
   try {

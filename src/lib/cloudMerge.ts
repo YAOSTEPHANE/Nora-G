@@ -1,11 +1,12 @@
 import { db } from '../db/db'
-import type { Sale } from '../db/types'
+import type { Product, Sale } from '../db/types'
 import { storeStockRowId } from './storeStockId'
 import { getOrCreateTerminalId } from './session'
 
 export type CloudMergeResult = {
   salesImported: number
   stockMerged: number
+  productsMerged: number
   conflicts: number
 }
 
@@ -90,6 +91,65 @@ export async function mergeStockFromCloud(
   return { merged, conflicts }
 }
 
+function asProduct(value: unknown): Product | null {
+  if (typeof value !== 'object' || value === null) return null
+  const v = value as Partial<Product>
+  if (typeof v.id !== 'string' || typeof v.name !== 'string') return null
+  if (typeof v.priceTTC !== 'number' || typeof v.barcode !== 'string') return null
+  return value as Product
+}
+
+export async function mergeProductsFromCloud(
+  updates: Array<{
+    productId: string
+    action: 'upsert' | 'delete'
+    product?: Record<string, unknown>
+    terminalId?: string
+  }>,
+): Promise<{ merged: number; conflicts: number }> {
+  const localTerminalId = getOrCreateTerminalId()
+  let merged = 0
+  let conflicts = 0
+
+  const pendingLocal = await db.syncQueue
+    .filter((item) => item.kind === 'product')
+    .toArray()
+
+  for (const update of updates) {
+    if (update.terminalId === localTerminalId) continue
+    const hasPending = pendingLocal.some((item) => {
+      try {
+        const parsed = JSON.parse(item.payload) as { productId?: string }
+        return parsed.productId === update.productId
+      } catch {
+        return false
+      }
+    })
+    if (hasPending) {
+      conflicts += 1
+      continue
+    }
+
+    if (update.action === 'delete') {
+      const existing = await db.products.get(update.productId)
+      if (!existing) continue
+      await db.storeStocks.where('productId').equals(update.productId).delete()
+      await db.locationStocks.where('productId').equals(update.productId).delete()
+      await db.productRecipeIngredients.where('productId').equals(update.productId).delete()
+      await db.products.delete(update.productId)
+      merged += 1
+      continue
+    }
+
+    const product = asProduct(update.product)
+    if (!product) continue
+    await db.products.put({ ...product, id: update.productId })
+    merged += 1
+  }
+
+  return { merged, conflicts }
+}
+
 export async function mergeCloudDeltas(input: {
   sales: Array<{ saleId: string; sale: Record<string, unknown>; terminalId?: string }>
   stockUpdates: Array<{
@@ -100,12 +160,20 @@ export async function mergeCloudDeltas(input: {
     terminalId?: string
     updatedAt: number
   }>
+  productUpdates?: Array<{
+    productId: string
+    action: 'upsert' | 'delete'
+    product?: Record<string, unknown>
+    terminalId?: string
+  }>
 }): Promise<CloudMergeResult> {
   const salesImported = await mergeSalesFromCloud(input.sales)
   const stock = await mergeStockFromCloud(input.stockUpdates)
+  const products = await mergeProductsFromCloud(input.productUpdates ?? [])
   return {
     salesImported,
     stockMerged: stock.merged,
-    conflicts: stock.conflicts,
+    productsMerged: products.merged,
+    conflicts: stock.conflicts + products.conflicts,
   }
 }

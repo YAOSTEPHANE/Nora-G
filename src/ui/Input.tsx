@@ -76,21 +76,22 @@ export const Textarea = forwardRef<
 
 export const Select = forwardRef<
   HTMLSelectElement,
-  SelectHTMLAttributes<HTMLSelectElement>
->(function Select({ className, children, ...rest }, ref) {
+  SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean }
+>(function Select({ className, children, invalid, ...rest }, ref) {
   return (
     <div className="relative">
       <select
         ref={ref}
         className={cn(
-          'ui-input appearance-none pr-9',
+          'ui-input appearance-none pr-10',
+          invalid && 'border-rose-400 focus:border-rose-500',
           className,
         )}
         {...rest}
       >
         {children}
       </select>
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-subtle">
+      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#0033aa]/70">
         <svg
           width="14"
           height="14"
@@ -122,7 +123,7 @@ export function Label({
   return (
     <label
       className={cn(
-        'mb-1.5 flex items-center justify-between text-[12px] font-semibold text-ink-muted',
+        'mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-subtle',
         className,
       )}
     >
@@ -153,7 +154,7 @@ export function Field({
   className?: string
 }) {
   return (
-    <div className={cn('block', className)}>
+    <div className={cn('ui-field block', className)}>
       {label ? (
         <Label required={required} hint={hint}>
           {label}
@@ -161,7 +162,7 @@ export function Field({
       ) : null}
       {children}
       {error ? (
-        <p className="mt-1 text-[11px] font-medium text-rose-600">{error}</p>
+        <p className="mt-1.5 text-[11px] font-medium text-rose-600">{error}</p>
       ) : null}
     </div>
   )

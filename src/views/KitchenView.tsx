@@ -16,6 +16,7 @@ import {
   getKitchenStationDemo,
   isKitchenModuleDemoOn,
 } from '../lib/integrationsConfig'
+import { cn } from '../ui/cn'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { Card, CardContent } from '../ui/Card'
@@ -133,8 +134,8 @@ export function KitchenView({ activeStoreId, canManageKitchenActions = true }: P
 
   useEffect(() => {
     const sync = () => setSlaThresholdMin(getAppSettings().kitchenSlaThresholdMin)
-    window.addEventListener('caisseci-app-settings-changed', sync)
-    return () => window.removeEventListener('caisseci-app-settings-changed', sync)
+    window.addEventListener('nora-app-settings-changed', sync)
+    return () => window.removeEventListener('nora-app-settings-changed', sync)
   }, [])
 
   const activeKitchenOrders = useMemo(() => {
@@ -308,11 +309,17 @@ export function KitchenView({ activeStoreId, canManageKitchenActions = true }: P
   }, [byStatus])
   const lowKitchenIngredients = useMemo(() => {
     return mergeKitchenIngredientRows(kitchenIngredients, kitchenIngredientStocks, activeStoreId)
+      .filter((ing) => !ing.archived)
       .filter((ing) => ing.stock <= ing.lowStockThreshold)
       .sort((a, b) => a.stock - b.stock)
   }, [kitchenIngredientStocks, kitchenIngredients, activeStoreId])
   const kitchenIngredientRows = useMemo(
-    () => mergeKitchenIngredientRows(kitchenIngredients, kitchenIngredientStocks, activeStoreId),
+    () =>
+      mergeKitchenIngredientRows(
+        kitchenIngredients,
+        kitchenIngredientStocks,
+        activeStoreId,
+      ).filter((ing) => !ing.archived),
     [kitchenIngredients, kitchenIngredientStocks, activeStoreId],
   )
   const projectedIngredientUsage = useMemo(() => {
@@ -487,8 +494,9 @@ export function KitchenView({ activeStoreId, canManageKitchenActions = true }: P
   )
 
   return (
-    <div className={kdsMode ? 'fixed inset-0 z-50 overflow-auto bg-zinc-950 p-4' : 'space-y-5 pb-6'}>
+    <div className={kdsMode ? 'fixed inset-0 z-50 overflow-auto bg-zinc-950 p-4' : 'module-page'}>
       <PageHeader
+        icon={<IconFile />}
         eyebrow="Module cuisine"
         title="Cuisine"
         subtitle="Pilotage des tickets de préparation par statut et station"
@@ -640,10 +648,10 @@ export function KitchenView({ activeStoreId, canManageKitchenActions = true }: P
           {COLUMNS.map((col) => {
             const rows = byStatus.get(col.status) ?? []
             return (
-              <Card key={col.status}>
-                <CardContent className="space-y-2">
+              <Card key={col.status} className="kds-column">
+                <CardContent className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-[13px] font-semibold text-zinc-900">{col.label}</h3>
+                    <h3 className="text-[13px] font-semibold tracking-tight text-caisse-ink">{col.label}</h3>
                     <Badge tone="neutral">{rows.length}</Badge>
                   </div>
                   {rows.length === 0 ? (
@@ -675,19 +683,19 @@ export function KitchenView({ activeStoreId, canManageKitchenActions = true }: P
                         return (
                           <div
                             key={order.id}
-                            className={
-                              isSlaPulse
-                                ? 'animate-pulse rounded-lg border-2 border-rose-500 bg-rose-100 p-2 shadow-sm shadow-rose-200'
-                                : slaExceeded
-                                  ? 'rounded-lg border-2 border-rose-500 bg-rose-100 p-2 shadow-sm shadow-rose-200'
-                                : hasLowIngredient
-                                  ? 'rounded-lg border border-amber-300 bg-amber-50 p-2'
-                                : isPriority
-                                  ? 'rounded-lg border border-rose-300 bg-rose-50 p-2'
-                                  : 'rounded-lg border border-zinc-200 p-2'
-                            }
+                            className={cn(
+                              'kds-ticket',
+                              isSlaPulse &&
+                                'animate-pulse border-2 border-rose-500 bg-rose-100 shadow-sm shadow-rose-200',
+                              !isSlaPulse && slaExceeded &&
+                                'border-2 border-rose-500 bg-rose-100 shadow-sm shadow-rose-200',
+                              !slaExceeded && hasLowIngredient &&
+                                'border-amber-300 bg-amber-50',
+                              !slaExceeded && !hasLowIngredient && isPriority &&
+                                'border-rose-300 bg-rose-50',
+                            )}
                           >
-                            <p className="text-[12px] font-semibold text-zinc-900">
+                            <p className="text-[12px] font-semibold text-caisse-ink">
                               {order.customerName}
                             </p>
                             <p className="font-mono-nums text-[11px] text-zinc-500">

@@ -29,7 +29,7 @@ export function Table({
   return (
     <div
       className={cn(
-        'min-w-0 overflow-hidden rounded-xl border border-border bg-white/96 shadow-[0_10px_28px_-22px_rgba(23,32,51,0.35)]',
+        'min-w-0 overflow-hidden rounded-2xl border border-[rgba(26,35,50,0.07)] bg-white/80 shadow-[0_1px_0_rgba(255,255,255,0.9)_inset,0_18px_40px_-28px_rgba(23,32,51,0.28)] backdrop-blur-xl',
         className,
       )}
       data-density={density}
@@ -48,7 +48,7 @@ export function Table({
 
 export function THead({ children }: { children: ReactNode }) {
   return (
-    <thead className="border-b border-border bg-surface-sunken/70 text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">
+    <thead className="border-b border-border/70 bg-[linear-gradient(180deg,rgba(238,241,248,0.9),rgba(246,248,252,0.72))] text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-subtle">
       {children}
     </thead>
   )
@@ -77,7 +77,7 @@ export function Tr({
   return (
     <tr
       className={cn(
-        hover && 'transition-colors duration-150 hover:bg-accent-soft/35',
+        hover && 'transition-colors duration-150 hover:bg-caisse-gold-soft/40',
         className,
       )}
       {...rest}

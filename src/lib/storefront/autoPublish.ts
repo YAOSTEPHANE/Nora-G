@@ -1,12 +1,12 @@
-import { db } from '../../db/db'
+﻿import { db } from '../../db/db'
 import type { ProductWithStock, Promotion } from '../../db/types'
 import { productIsActive } from '../productFilters'
 import { getOrganizationCredentials } from '../subscription/store'
 import { publishStorefrontMenu } from './api'
 import { orderStorefrontCategories } from './types'
 
-const LAST_FINGERPRINT_KEY = 'caisseci-storefront-publish-fingerprint'
-const LAST_PUBLISHED_AT_KEY = 'caisseci-storefront-published-at'
+const LAST_FINGERPRINT_KEY = 'nora-storefront-publish-fingerprint'
+const LAST_PUBLISHED_AT_KEY = 'nora-storefront-published-at'
 
 export type StorefrontPublishResult = {
   productCount: number
