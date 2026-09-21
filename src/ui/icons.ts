@@ -61,6 +61,7 @@ export {
   TrendingUp as IconTrendingUp,
   TrendingDown as IconTrendingDown,
   Store as IconStore,
+  Warehouse as IconWarehouse,
   Layers as IconLayers,
   ShieldCheck as IconShield,
   KeyRound as IconKey,

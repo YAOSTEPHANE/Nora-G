@@ -36,6 +36,7 @@ export type CheckoutLineMeta = {
   serialUnitIds?: string[]
   serialNumbers?: string[]
   imeiNumbers?: string[]
+  variantId?: string
 }
 
 export type CheckoutComplianceResult = {
@@ -200,7 +201,10 @@ export function CheckoutComplianceModal({
 
     const lineMeta: CheckoutLineMeta[] = cart.map((line) => {
       const p = productById.get(line.productId)
-      const meta: CheckoutLineMeta = { productId: line.productId }
+      const meta: CheckoutLineMeta = {
+        productId: line.productId,
+        variantId: line.variantId,
+      }
       if (p?.trackLots) {
         meta.lotAllocations = lotSelections[line.productId]
       }

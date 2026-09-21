@@ -1,5 +1,6 @@
 import { useMemo, useState, type Ref } from 'react'
 import type { CartLine, MobileMoneyOperator, SaleUnit } from '../db/types'
+import { CI_MOBILE_OPERATORS } from '../lib/ciPayments'
 import type { CheckoutPaymentState } from '../lib/checkoutPayment'
 import { validateCheckoutPayment } from '../lib/checkoutPayment'
 import {
@@ -7,13 +8,13 @@ import {
   totalsFromLinesTTC,
   vatSlicesFromLinesTTC,
 } from '../lib/money'
+import { MOBILE_OPERATOR_LABELS } from '../lib/paymentDisplay'
 import {
   formatQty,
   packHint,
   saleUnitOf,
   saleUnitShort,
 } from '../lib/saleUnit'
-import { MOBILE_OPERATOR_LABELS } from '../lib/paymentDisplay'
 import { Button } from '../ui/Button'
 import { Field, Input, Select } from '../ui/Input'
 import { Switch } from '../ui/Switch'
@@ -58,6 +59,10 @@ type Props = {
   onPromoInputChange: (v: string) => void
   onApplyPromo: () => void
   promoFeedback: string | null
+  /** Remise manuelle % (hors code promo). */
+  onApplyManualDiscount?: (pct: number) => void
+  /** Demande une validation gérant pour une remise au-delà du plafond. */
+  onRequestDiscountOverride?: (pct: number) => void
   payment: CheckoutPaymentState
   onPaymentPatch: (patch: Partial<CheckoutPaymentState>) => void
   online: boolean
@@ -115,7 +120,7 @@ function quickCashSuggestions(amountDue: number): number[] {
 const PAYMENT_METHODS = [
   { id: 'cash' as const, label: 'Espèces', Icon: IconCash },
   { id: 'card' as const, label: 'Carte', Icon: IconCard },
-  { id: 'mobile' as const, label: 'Mobile', Icon: IconMobile },
+  { id: 'mobile' as const, label: 'Momo CI', Icon: IconMobile },
   { id: 'credit' as const, label: 'Crédit', Icon: IconUser },
 ]
 
@@ -123,10 +128,13 @@ export function CartPanel({
   lines,
   products,
   discountPct,
+  maxDiscountPct,
   promoInput,
   onPromoInputChange,
   onApplyPromo,
   promoFeedback,
+  onApplyManualDiscount,
+  onRequestDiscountOverride,
   payment,
   onPaymentPatch,
   online,
@@ -196,6 +204,9 @@ export function CartPanel({
     loyaltyRedeemPoints.trim().length > 0
   const [showExtras, setShowExtras] = useState(extrasActive)
   const [showTaxDetail, setShowTaxDetail] = useState(false)
+  const [manualDiscountInput, setManualDiscountInput] = useState(
+    discountPct > 0 ? String(discountPct) : '',
+  )
   const promoActive =
     promoInput.trim().length > 0 || discountPct > 0 || Boolean(promoFeedback)
 
@@ -481,7 +492,7 @@ export function CartPanel({
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-caisse-muted">
                   <IconTag className="h-3 w-3 text-caisse-gold" />
-                  Code promo
+                  Remises contrôlées
                 </p>
                 {promoActive ? (
                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
@@ -489,24 +500,74 @@ export function CartPanel({
                   </span>
                 ) : null}
               </div>
+              <p className="mb-2 text-[11px] text-zinc-500">
+                Plafond profil : {maxDiscountPct} %
+                {maxDiscountPct < 100
+                  ? ' — au-delà, validation gérant requise'
+                  : ''}
+              </p>
+              <div className="mb-2 flex gap-1.5">
+                <Input
+                  value={manualDiscountInput}
+                  onChange={(e) => setManualDiscountInput(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="Remise %"
+                  className="min-w-0 flex-1 text-[12px]"
+                  aria-label="Remise manuelle en pourcentage"
+                />
+                <Button
+                  size="md"
+                  variant="secondary"
+                  className="shrink-0"
+                  disabled={!onApplyManualDiscount && !onRequestDiscountOverride}
+                  onClick={() => {
+                    const pct = Number.parseFloat(
+                      manualDiscountInput.replace(',', '.'),
+                    )
+                    if (!Number.isFinite(pct) || pct < 0) return
+                    const rounded = Math.min(100, Math.round(pct * 10) / 10)
+                    if (rounded <= maxDiscountPct) {
+                      onApplyManualDiscount?.(rounded)
+                    } else if (onRequestDiscountOverride) {
+                      onRequestDiscountOverride(rounded)
+                    } else {
+                      onApplyManualDiscount?.(maxDiscountPct)
+                    }
+                  }}
+                >
+                  Appliquer
+                </Button>
+              </div>
               <div className="flex gap-1.5">
                 <Input
                   value={promoInput}
                   onChange={(e) => onPromoInputChange(e.target.value)}
-                  placeholder="Ex. BIENVENUE10"
+                  placeholder="Code promo (ex. BIENVENUE10)"
                   className="min-w-0 flex-1 text-[12px]"
                 />
                 <Button size="md" variant="secondary" onClick={onApplyPromo} className="shrink-0">
-                  OK
+                  Promo
                 </Button>
               </div>
               {promoFeedback ? (
                 <p className="mt-1.5 text-[11px] text-zinc-600">{promoFeedback}</p>
               ) : null}
               {discountPct > 0 ? (
-                <p className="mt-1 text-[11px] font-medium text-emerald-700">
-                  Remise panier : {discountPct} %
-                </p>
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-medium text-emerald-700">
+                    Remise panier : {discountPct} %
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setManualDiscountInput('')
+                      onApplyManualDiscount?.(0)
+                    }}
+                  >
+                    Retirer
+                  </Button>
+                </div>
               ) : null}
             </div>
 
@@ -697,37 +758,76 @@ export function CartPanel({
               ) : null}
 
               {showMobileOperators ? (
-                <div className="mt-3">
-                  <p className="mb-1.5 text-[11px] font-medium text-caisse-muted">
-                    Opérateur mobile
+                <div className="mt-3 space-y-2">
+                  <p className="text-[11px] font-medium text-caisse-muted">
+                    Mobile money Côte d’Ivoire (FCFA)
                   </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(
-                      [
-                        ['orange', MOBILE_OPERATOR_LABELS.orange],
-                        ['mtn', MOBILE_OPERATOR_LABELS.mtn],
-                        ['wave', MOBILE_OPERATOR_LABELS.wave],
-                      ] as const
-                    ).map(([id, label]) => (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() =>
-                          onPaymentPatch({
-                            mobileOperator: id as MobileMoneyOperator,
-                          })
-                        }
-                        className={cn(
-                          'rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition',
-                          payment.mobileOperator === id
-                            ? 'caisse-operator-active'
-                            : 'border-[rgba(0,51,170,0.16)] bg-white text-caisse-muted hover:border-[rgba(0,51,170,0.35)]',
-                        )}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {CI_MOBILE_OPERATORS.map((op) => {
+                      const active = payment.mobileOperator === op.id
+                      return (
+                        <button
+                          key={op.id}
+                          type="button"
+                          onClick={() =>
+                            onPaymentPatch({
+                              mobileOperator: op.id as MobileMoneyOperator,
+                              method: 'mobile',
+                              mixed: false,
+                            })
+                          }
+                          className={cn(
+                            'rounded-xl border px-2.5 py-2 text-left transition',
+                            active
+                              ? 'border-transparent shadow-sm'
+                              : 'border-[rgba(0,51,170,0.16)] bg-white hover:border-[rgba(0,51,170,0.35)]',
+                          )}
+                          style={
+                            active
+                              ? {
+                                  backgroundColor: `${op.accent}22`,
+                                  borderColor: op.accent,
+                                }
+                              : undefined
+                          }
+                        >
+                          <span
+                            className="block text-[12px] font-bold leading-tight"
+                            style={{ color: active ? op.accent : undefined }}
+                          >
+                            {op.shortLabel}
+                          </span>
+                          <span className="mt-0.5 block text-[10px] text-caisse-muted">
+                            {op.label}
+                          </span>
+                        </button>
+                      )
+                    })}
                   </div>
+                  <Field
+                    label="N° client (+225)"
+                    hint="Optionnel — pour push USSD / preuve"
+                  >
+                    <Input
+                      inputMode="tel"
+                      value={payment.mobilePhone}
+                      onChange={(e) =>
+                        onPaymentPatch({ mobilePhone: e.target.value })
+                      }
+                      placeholder="07 XX XX XX XX"
+                      className="font-mono-nums"
+                    />
+                  </Field>
+                  <Field label="Réf. transaction (optionnel)">
+                    <Input
+                      value={payment.mobileRef}
+                      onChange={(e) =>
+                        onPaymentPatch({ mobileRef: e.target.value })
+                      }
+                      placeholder={`${MOBILE_OPERATOR_LABELS[payment.mobileOperator]} · ID`}
+                      className="font-mono-nums text-[12px]"
+                    />
+                  </Field>
                 </div>
               ) : null}
 

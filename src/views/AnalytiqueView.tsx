@@ -71,6 +71,8 @@ function pctDelta(current: number, previous: number): number | null {
 export function AnalytiqueView() {
   const sales = useLiveQuery(() => db.sales.toArray(), [], []) ?? []
   const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const priceHistory =
+    useLiveQuery(() => db.purchasePriceHistory.toArray(), [], []) ?? []
   const onlineOrders =
     useLiveQuery(() => db.onlineOrders.toArray(), [], []) ?? []
   const [period, setPeriod] = useState<Period>(7)
@@ -162,16 +164,16 @@ export function AnalytiqueView() {
   )
 
   const top = useMemo(
-    () => topProductsWithMargins(rangeSales, products, 12),
-    [rangeSales, products],
+    () => topProductsWithMargins(rangeSales, products, 12, priceHistory),
+    [rangeSales, products, priceHistory],
   )
   const marginTotals = useMemo(
-    () => periodMarginTotals(rangeSales, products),
-    [rangeSales, products],
+    () => periodMarginTotals(rangeSales, products, priceHistory),
+    [rangeSales, products, priceHistory],
   )
   const previousMarginTotals = useMemo(
-    () => periodMarginTotals(previousRangeSales, products),
-    [previousRangeSales, products],
+    () => periodMarginTotals(previousRangeSales, products, priceHistory),
+    [previousRangeSales, products, priceHistory],
   )
   const deltas = useMemo(
     () => ({

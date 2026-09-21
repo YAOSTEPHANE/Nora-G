@@ -1,4 +1,4 @@
-﻿import type { StaffProfile } from './types'
+﻿import type { StaffProfile, StaffPermissions } from './types'
 import { isBuiltinUserRole } from './types'
 import { builtinRoleLabel, getCustomRole } from './customRoles'
 import { isCloudApiConfigured } from '../lib/apiUrl'
@@ -191,22 +191,47 @@ export function mergeStaffFromCloud(
     role: StaffProfile['role']
     storeId?: string | null
     active: boolean
+    permissionOverrides?: Partial<StaffPermissions> | null
+    customRoleId?: string | null
   }>,
 ): number {
-  const localCustom = readCustomProfiles()
-  const localPins = new Map(localCustom.map((p) => [p.id, p.pin]))
-  const merged: StaffProfile[] = remote.map((row) => ({
-    id: row.id,
-    displayName: row.displayName,
-    initials: row.initials,
-    role: row.role,
-    active: row.active,
-    ...(row.storeId ? { storeId: row.storeId } : {}),
-    pin:
-      localPins.get(row.id) ??
-      (row.id === OWNER_PROFILE_ID ? DEFAULT_OWNER_PIN : '0000'),
-  }))
+  const localById = new Map<string, StaffProfile>()
+  for (const p of [...readCloudStaffProfiles(), ...readCustomProfiles()]) {
+    localById.set(p.id, p)
+  }
+
+  const remoteIds = new Set(remote.map((r) => r.id))
+  const merged: StaffProfile[] = remote.map((row) => {
+    const local = localById.get(row.id)
+    const overrides =
+      row.permissionOverrides !== undefined && row.permissionOverrides !== null
+        ? row.permissionOverrides
+        : local?.permissionOverrides
+    const customRoleId =
+      row.customRoleId !== undefined && row.customRoleId !== null
+        ? row.customRoleId
+        : local?.customRoleId
+    return {
+      id: row.id,
+      displayName: row.displayName,
+      initials: row.initials,
+      role: row.role,
+      active: row.active,
+      ...(row.storeId ? { storeId: row.storeId } : {}),
+      pin:
+        local?.pin ??
+        (row.id === OWNER_PROFILE_ID ? DEFAULT_OWNER_PIN : '0000'),
+      ...(local?.password ? { password: local.password } : {}),
+      ...(overrides && Object.keys(overrides).length > 0
+        ? { permissionOverrides: { ...overrides } }
+        : {}),
+      ...(customRoleId ? { customRoleId } : {}),
+    }
+  })
   writeCloudStaffProfiles(merged)
+  // Évite les doublons cloud + custom pour le même profileId.
+  const customLeft = readCustomProfiles().filter((p) => !remoteIds.has(p.id))
+  writeCustomProfiles(customLeft)
   return merged.length
 }
 
@@ -362,6 +387,7 @@ export function createStaffProfile(input: {
     storeId: created.storeId,
     pin: created.pin,
     password: created.password,
+    customRoleId: created.customRoleId ?? null,
   })
   return created
 }
@@ -376,6 +402,7 @@ export function updateStaffProfile(
     pin?: string
     password?: string | null
     active?: boolean
+    permissionOverrides?: Partial<StaffPermissions> | null
   },
 ): StaffProfile {
   if (isBuiltinProfileId(profileId)) {
@@ -435,6 +462,16 @@ export function updateStaffProfile(
     else delete next.password
   }
   if (patch.active !== undefined) next.active = patch.active
+  if (patch.permissionOverrides !== undefined) {
+    if (
+      patch.permissionOverrides == null ||
+      Object.keys(patch.permissionOverrides).length === 0
+    ) {
+      delete next.permissionOverrides
+    } else {
+      next.permissionOverrides = { ...patch.permissionOverrides }
+    }
+  }
 
   custom[idx] = next
   writeCustomProfiles(custom)
@@ -447,6 +484,8 @@ export function updateStaffProfile(
       pin: patch.pin,
       password: patch.password ?? undefined,
       active: next.active,
+      permissionOverrides: next.permissionOverrides ?? null,
+      customRoleId: next.customRoleId ?? null,
     },
   })
   return profileById(profileId) ?? next

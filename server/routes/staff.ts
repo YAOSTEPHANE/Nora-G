@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
 import { ZodError, z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 import { requireActiveOrg, requireOrg } from '../lib/orgAuth.js'
@@ -27,6 +28,8 @@ function serializeStaff(row: {
   storeId: string | null
   active: boolean
   updatedAt: Date
+  permissionOverrides?: unknown
+  customRoleId?: string | null
 }) {
   return {
     id: row.profileId,
@@ -36,6 +39,13 @@ function serializeStaff(row: {
     storeId: row.storeId,
     active: row.active,
     updatedAt: row.updatedAt.toISOString(),
+    permissionOverrides:
+      row.permissionOverrides &&
+      typeof row.permissionOverrides === 'object' &&
+      !Array.isArray(row.permissionOverrides)
+        ? row.permissionOverrides
+        : undefined,
+    customRoleId: row.customRoleId ?? undefined,
   }
 }
 
@@ -76,6 +86,8 @@ staffRouter.post('/org/staff', async (req, res) => {
         storeId: z.string().optional(),
         pin: z.string(),
         password: z.string().optional(),
+        permissionOverrides: z.record(z.unknown()).nullable().optional(),
+        customRoleId: z.string().nullable().optional(),
       })
       .parse(req.body)
 
@@ -113,6 +125,13 @@ staffRouter.post('/org/staff', async (req, res) => {
           ? hashStaffPassword(body.password.trim())
           : null,
         active: true,
+        permissionOverrides:
+          body.permissionOverrides === undefined
+            ? undefined
+            : body.permissionOverrides === null
+              ? null
+              : (body.permissionOverrides as Prisma.InputJsonValue),
+        customRoleId: body.customRoleId?.trim() || null,
       },
     })
 
@@ -154,6 +173,8 @@ staffRouter.patch('/org/staff/:profileId', async (req, res) => {
         pin: z.string().optional(),
         password: z.string().nullable().optional(),
         active: z.boolean().optional(),
+        permissionOverrides: z.record(z.unknown()).nullable().optional(),
+        customRoleId: z.string().nullable().optional(),
       })
       .parse(req.body)
 
@@ -187,6 +208,16 @@ staffRouter.patch('/org/staff/:profileId', async (req, res) => {
               ? hashStaffPassword(body.password.trim())
               : null,
         active: body.active,
+        permissionOverrides:
+          body.permissionOverrides === undefined
+            ? undefined
+            : body.permissionOverrides === null
+              ? null
+              : (body.permissionOverrides as Prisma.InputJsonValue),
+        customRoleId:
+          body.customRoleId === undefined
+            ? undefined
+            : body.customRoleId?.trim() || null,
       },
     })
 

@@ -6,6 +6,11 @@ export function formatFCFA(amount: number): string {
   return `${FMT.format(Math.round(amount))} FCFA`
 }
 
+/** Alias explicite devise Côte d’Ivoire (XOF). */
+export function formatXOF(amount: number): string {
+  return formatFCFA(amount)
+}
+
 /** Taux TVA par défaut si non renseigné sur la ligne (%) */
 export const DEFAULT_VAT_RATE_PCT = 18
 

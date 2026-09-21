@@ -10,6 +10,8 @@ export type RemoteStaffProfile = {
   role: StaffProfile['role']
   storeId?: string | null
   active: boolean
+  permissionOverrides?: StaffProfile['permissionOverrides']
+  customRoleId?: string | null
 }
 
 export async function fetchRemoteStaff(): Promise<RemoteStaffProfile[]> {
@@ -27,6 +29,8 @@ export async function createRemoteStaff(input: {
   storeId?: string
   pin: string
   password?: string
+  permissionOverrides?: StaffProfile['permissionOverrides']
+  customRoleId?: string | null
 }): Promise<RemoteStaffProfile> {
   const res = await fetch(apiUrl('/org/staff'), {
     method: 'POST',
@@ -45,6 +49,8 @@ export async function updateRemoteStaff(
     pin: string
     password: string | null
     active: boolean
+    permissionOverrides: StaffProfile['permissionOverrides'] | null
+    customRoleId: string | null
   }>,
 ): Promise<RemoteStaffProfile> {
   const res = await fetch(apiUrl(`/org/staff/${encodeURIComponent(profileId)}`), {

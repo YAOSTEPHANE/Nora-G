@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? 'http://localhost:3000'),
   title: 'Nora',
   description:
-    'Nora — point de vente offline-first pour la Côte d’Ivoire. Mobile money, multi-postes, Orange Money, Wave, MTN MoMo.',
+    'Nora — point de vente offline-first pour la Côte d’Ivoire. FCFA, espèces, carte, Wave, Orange Money, MTN MoMo, Moov Money.',
   openGraph: {
     title: 'Nora',
     description:

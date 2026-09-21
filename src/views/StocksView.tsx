@@ -53,12 +53,25 @@ import {
 } from '../ui/icons'
 import { ProductLotsPanel } from '../components/stocks/ProductLotsPanel'
 import { ProductSerialsPanel } from '../components/stocks/ProductSerialsPanel'
+import { ProductVariantsPanel } from '../components/stocks/ProductVariantsPanel'
+import {
+  computeDormantStock,
+  DEFAULT_DORMANT_DAYS,
+  stockAlertLevel,
+} from '../lib/stockAnalytics'
 
 type Props = { isAdmin: boolean; auditActor: AuditActor }
 
-type StockFilter = 'tous' | 'rupture' | 'alerte' | 'ok'
+type StockFilter = 'tous' | 'rupture' | 'alerte' | 'ok' | 'dormant'
 type StockScope = 'catalogue' | 'cuisine'
-type CatalogueSubTab = 'articles' | 'mouvements' | 'lots' | 'series'
+type CatalogueSubTab =
+  | 'articles'
+  | 'alertes'
+  | 'dormant'
+  | 'variantes'
+  | 'mouvements'
+  | 'lots'
+  | 'series'
 type StockSortKey = 'urgency' | 'name' | 'stock-asc' | 'stock-desc' | 'price-desc'
 
 function urgency(p: ProductWithStock): number {
@@ -73,6 +86,7 @@ export function StocksView({ isAdmin, auditActor }: Props) {
   const domain = getAppSettings().businessDomain
   const domainFeatures = featuresForDomain(domain)
   const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const sales = useLiveQuery(() => db.sales.toArray(), [], []) ?? []
   const stockRows =
     useLiveQuery(
       () => db.storeStocks.where('storeId').equals(activeStoreId).toArray(),
@@ -170,13 +184,25 @@ export function StocksView({ isAdmin, auditActor }: Props) {
     const ok = visibleProducts.length - rupture - low
     return { rupture, low, ok, total: visibleProducts.length }
   }, [visibleProducts])
+  const dormantRows = useMemo(
+    () =>
+      computeDormantStock({
+        products: visibleProducts,
+        sales,
+        dormantDays: DEFAULT_DORMANT_DAYS,
+      }),
+    [visibleProducts, sales],
+  )
+  const dormantIds = useMemo(
+    () => new Set(dormantRows.map((r) => r.product.id)),
+    [dormantRows],
+  )
+  const dormantValuation = useMemo(
+    () => dormantRows.reduce((s, r) => s + r.stockValueTTC, 0),
+    [dormantRows],
+  )
   const stockValuation = useMemo(() => {
     return visibleProducts.reduce((sum, p) => sum + p.stock * p.priceTTC, 0)
-  }, [visibleProducts])
-  const ruptureValuation = useMemo(() => {
-    return visibleProducts
-      .filter((p) => p.stock <= 0)
-      .reduce((sum, p) => sum + p.priceTTC, 0)
   }, [visibleProducts])
 
   const filtered = useMemo(() => {
@@ -187,6 +213,8 @@ export function StocksView({ isAdmin, auditActor }: Props) {
       list = list.filter((p) => p.stock > 0 && p.stock <= p.lowStockThreshold)
     else if (filter === 'ok')
       list = list.filter((p) => p.stock > p.lowStockThreshold)
+    else if (filter === 'dormant')
+      list = list.filter((p) => dormantIds.has(p.id))
     if (t) {
       list = list.filter(
         (p) =>
@@ -212,7 +240,18 @@ export function StocksView({ isAdmin, auditActor }: Props) {
         }
       }
     })
-  }, [visibleProducts, filter, q, sortKey])
+  }, [visibleProducts, filter, q, sortKey, dormantIds])
+
+  const alertProducts = useMemo(
+    () =>
+      visibleProducts
+        .filter((p) => {
+          const level = stockAlertLevel(p)
+          return level === 'rupture' || level === 'alerte'
+        })
+        .sort((a, b) => urgency(a) - urgency(b) || a.stock - b.stock),
+    [visibleProducts],
+  )
 
   const stockMovements = useMemo(() => {
     const rows = auditRows ?? []
@@ -860,9 +899,10 @@ export function StocksView({ isAdmin, auditActor }: Props) {
       { id: 'tous' as const, label: 'Tous' },
       { id: 'rupture' as const, label: 'Rupture', count: stats.rupture },
       { id: 'alerte' as const, label: 'Alerte', count: stats.low },
+      { id: 'dormant' as const, label: 'Dormant', count: dormantRows.length },
       { id: 'ok' as const, label: 'OK', count: stats.ok },
     ],
-    [stats.rupture, stats.low, stats.ok],
+    [stats.rupture, stats.low, stats.ok, dormantRows.length],
   )
 
   return (
@@ -874,7 +914,7 @@ export function StocksView({ isAdmin, auditActor }: Props) {
         subtitle={
           stockScope === 'cuisine'
             ? 'Matières premières et ingrédients utilisés en cuisine (recettes)'
-            : 'Niveaux par magasin et par emplacement, seuils d’alerte et inventaire rapide'
+            : 'Stock temps réel, alertes, variantes, inventaire et stock dormant'
         }
         actions={
           stockScope === 'catalogue' ? (
@@ -1288,7 +1328,7 @@ export function StocksView({ isAdmin, auditActor }: Props) {
       ) : null}
 
       <div className="catalogue-hero p-4 sm:p-5">
-        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <Kpi
           label="Rupture"
           value={String(stats.rupture)}
@@ -1311,6 +1351,13 @@ export function StocksView({ isAdmin, auditActor }: Props) {
           icon={<IconCheckCircle />}
         />
         <Kpi
+          label="Stock dormant"
+          value={String(dormantRows.length)}
+          hint={`${DEFAULT_DORMANT_DAYS} j sans vente`}
+          tone="amber"
+          icon={<IconAlert />}
+        />
+        <Kpi
           label="Valeur du stock"
           value={formatFCFA(stockValuation)}
           hint="Magasin actif"
@@ -1318,9 +1365,9 @@ export function StocksView({ isAdmin, auditActor }: Props) {
           icon={<IconStocks />}
         />
         <Kpi
-          label="Exposé rupture"
-          value={formatFCFA(ruptureValuation)}
-          hint="Références à zéro"
+          label="Immobilisé dormant"
+          value={formatFCFA(dormantValuation)}
+          hint="Valeur stock dormant"
           tone="rose"
           icon={<IconAlert />}
         />
@@ -1333,6 +1380,17 @@ export function StocksView({ isAdmin, auditActor }: Props) {
         onChange={setCatalogueSubTab}
         items={[
           { id: 'articles', label: 'Articles', count: filtered.length },
+          {
+            id: 'alertes',
+            label: 'Alertes',
+            count: alertProducts.length > 0 ? alertProducts.length : undefined,
+          },
+          {
+            id: 'dormant',
+            label: 'Dormant',
+            count: dormantRows.length > 0 ? dormantRows.length : undefined,
+          },
+          { id: 'variantes', label: 'Variantes' },
           {
             id: 'mouvements',
             label: 'Mouvements',
@@ -1357,6 +1415,118 @@ export function StocksView({ isAdmin, auditActor }: Props) {
           storeId={activeStoreId}
           storeLabel={activeStore?.name ?? activeStoreId}
         />
+      ) : catalogueSubTab === 'variantes' ? (
+        <ProductVariantsPanel
+          storeId={activeStoreId}
+          storeLabel={activeStore?.name ?? activeStoreId}
+          canManage={isAdmin}
+          products={products}
+        />
+      ) : catalogueSubTab === 'alertes' ? (
+        <Card>
+          <CardContent className="space-y-2">
+            <p className="text-[13px] text-ink-muted">
+              Alertes temps réel — rupture (0) et sous le seuil d’alerte produit.
+            </p>
+            {alertProducts.length === 0 ? (
+              <EmptyState
+                title="Aucune alerte"
+                description="Tous les stocks sont confortables."
+              />
+            ) : (
+              <ul className="space-y-1.5">
+                {alertProducts.map((p) => {
+                  const level = stockAlertLevel(p)
+                  return (
+                    <li
+                      key={p.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-white px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-semibold">
+                          {p.name}
+                        </p>
+                        <p className="text-[11px] text-ink-muted">
+                          Seuil {p.lowStockThreshold} · {p.barcode}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          tone={level === 'rupture' ? 'danger' : 'warning'}
+                        >
+                          {level === 'rupture' ? 'Rupture' : 'Alerte'}
+                        </Badge>
+                        <span className="font-mono-nums text-[14px] font-bold">
+                          {p.stock}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setFilter(level === 'rupture' ? 'rupture' : 'alerte')
+                            setCatalogueSubTab('articles')
+                          }}
+                        >
+                          Voir
+                        </Button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      ) : catalogueSubTab === 'dormant' ? (
+        <Card>
+          <CardContent className="space-y-2">
+            <p className="text-[13px] text-ink-muted">
+              Stock dormant : quantité &gt; 0 sans vente depuis{' '}
+              {DEFAULT_DORMANT_DAYS} jours (ou jamais vendu).
+            </p>
+            {dormantRows.length === 0 ? (
+              <EmptyState
+                title="Pas de stock dormant"
+                description="Bonne rotation sur ce magasin."
+              />
+            ) : (
+              <ul className="space-y-1.5">
+                {dormantRows.map((row) => (
+                  <li
+                    key={row.product.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-white px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-semibold">
+                        {row.product.name}
+                      </p>
+                      <p className="text-[11px] text-ink-muted">
+                        {row.lastSoldAt == null
+                          ? 'Jamais vendu'
+                          : `Dernière vente il y a ${row.daysSinceSale} j`}
+                        {' · '}
+                        Stock {row.product.stock}
+                      </p>
+                    </div>
+                    <span className="font-mono-nums text-[13px] font-bold text-caisse-gold">
+                      {formatFCFA(row.stockValueTTC)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setFilter('dormant')
+                setCatalogueSubTab('articles')
+              }}
+            >
+              Filtrer la liste articles
+            </Button>
+          </CardContent>
+        </Card>
       ) : catalogueSubTab === 'articles' ? (
         <>
       {isAdmin ? (

@@ -5,6 +5,7 @@ import { buildOrgAuthHeaders } from './subscription/authHeaders'
 import { getLastSyncTimestamp, setLastSyncTimestamp } from './syncMeta'
 import { importStorefrontOrdersFromPull } from './storefront/syncInbox'
 import type { UserRole } from '../auth/types'
+import type { StaffPermissions } from '../auth/types'
 import { getOrCreateTerminalId } from './session'
 
 export type CloudPullResult = {
@@ -28,6 +29,8 @@ type PullResponse = {
     storeId: string | null
     active: boolean
     updatedAt: number
+    permissionOverrides?: Partial<StaffPermissions>
+    customRoleId?: string | null
   }>
   storefrontOrders: Array<{
     id: string
@@ -112,7 +115,18 @@ async function applyStaffFromCloud(
 ): Promise<number> {
   if (staff.length === 0) return 0
   const { mergeStaffFromCloud } = await import('../auth/profiles')
-  return mergeStaffFromCloud(staff)
+  return mergeStaffFromCloud(
+    staff.map((row) => ({
+      id: row.id,
+      displayName: row.displayName,
+      initials: row.initials,
+      role: row.role,
+      storeId: row.storeId,
+      active: row.active,
+      permissionOverrides: row.permissionOverrides,
+      customRoleId: row.customRoleId,
+    })),
+  )
 }
 
 async function applyIntegrationsFromCloud(config: Record<string, unknown>): Promise<void> {

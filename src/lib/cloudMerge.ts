@@ -59,6 +59,14 @@ export async function mergeStockFromCloud(
   for (const update of updates) {
     if (update.terminalId === localTerminalId) continue
 
+    const product = await db.products.get(update.productId)
+    // Ne pas écraser le stock agrégé d’un produit à variantes
+    // (le détail vit dans variantStoreStocks, local uniquement pour l’instant).
+    if (product?.hasVariants) {
+      conflicts += 1
+      continue
+    }
+
     const stockId = storeStockRowId(update.storeId, update.productId)
     const existing = await db.storeStocks.get(stockId)
     if (existing && existing.stock === update.stock) continue
@@ -136,6 +144,10 @@ export async function mergeProductsFromCloud(
       await db.storeStocks.where('productId').equals(update.productId).delete()
       await db.locationStocks.where('productId').equals(update.productId).delete()
       await db.productRecipeIngredients.where('productId').equals(update.productId).delete()
+      await db.variantStoreStocks.where('productId').equals(update.productId).delete()
+      await db.productVariants.where('productId').equals(update.productId).delete()
+      await db.productLots.where('productId').equals(update.productId).delete()
+      await db.productSerialUnits.where('productId').equals(update.productId).delete()
       await db.products.delete(update.productId)
       merged += 1
       continue

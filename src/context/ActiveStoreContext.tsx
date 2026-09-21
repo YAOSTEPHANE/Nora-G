@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { db } from '../db/db'
 import type { ProductWithStock, Store } from '../db/types'
-import { DEFAULT_STORE_ID } from '../db/seedStores'
+import { DEFAULT_STORE_ID, isWarehouseStore } from '../db/seedStores'
 import {
   APP_SETTINGS_CHANGED_EVENT,
   getAppSettings,
@@ -64,7 +64,10 @@ export function ActiveStoreProvider({
   const allStores =
     useLiveQuery(() => db.stores.orderBy('sortOrder').toArray(), [], []) ?? []
   const stores = useMemo(
-    () => allStores.filter((store) => !store.archived),
+    () =>
+      allStores.filter(
+        (store) => !store.archived && !isWarehouseStore(store),
+      ),
     [allStores],
   )
   const products =

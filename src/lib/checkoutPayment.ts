@@ -3,6 +3,7 @@ import type {
   PaymentMethod,
   SalePaymentSplit,
 } from '../db/types'
+import { normalizeCiPhone } from './ciPayments'
 import { formatFCFA } from './money'
 import { MOBILE_OPERATOR_LABELS } from './paymentDisplay'
 
@@ -14,6 +15,8 @@ export type CheckoutPaymentState = {
   splitCard: string
   splitMobile: string
   mobileOperator: MobileMoneyOperator
+  /** Numéro client (Orange / Wave / MTN / Moov). */
+  mobilePhone: string
   cashReceived: string
   cardRef: string
   mobileRef: string
@@ -27,6 +30,7 @@ export function defaultCheckoutPayment(): CheckoutPaymentState {
     splitCard: '',
     splitMobile: '',
     mobileOperator: 'orange',
+    mobilePhone: '',
     cashReceived: '',
     cardRef: '',
     mobileRef: '',
@@ -54,6 +58,41 @@ function parseSplitPart(raw: string): number | null {
   if (t === '') return 0
   const n = Number.parseInt(t.replace(/\s/g, ''), 10)
   return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+function resolveMobilePhone(
+  state: CheckoutPaymentState,
+  requirePhone: boolean,
+): { ok: true; phone?: string } | { ok: false; message: string } {
+  const raw = state.mobilePhone.trim()
+  if (!raw) {
+    if (requirePhone) {
+      return {
+        ok: false,
+        message:
+          'Indiquez le numéro client (+225…) pour Orange Money, Wave, MTN MoMo ou Moov Money.',
+      }
+    }
+    return { ok: true }
+  }
+  const phone = normalizeCiPhone(raw)
+  if (!phone) {
+    return {
+      ok: false,
+      message: 'Numéro invalide. Exemple : 07 XX XX XX XX ou +225XXXXXXXXX.',
+    }
+  }
+  return { ok: true, phone }
+}
+
+function buildMobileRef(
+  state: CheckoutPaymentState,
+  phone?: string,
+): string {
+  if (state.mobileRef.trim()) return state.mobileRef.trim()
+  const op = state.mobileOperator.toUpperCase()
+  const suffix = Date.now().toString(36).slice(-8).toUpperCase()
+  return phone ? `${op}-${phone}-${suffix}` : `${op}-${suffix}`
 }
 
 /**
@@ -90,6 +129,8 @@ export function validateCheckoutPayment(
     if (m > 0 && !state.mobileOperator) {
       return { ok: false, message: 'Choisissez un opérateur mobile money.' }
     }
+    const phoneCheck = resolveMobilePhone(state, false)
+    if (!phoneCheck.ok) return phoneCheck
     let cashReceived: number | undefined
     let changeDue: number | undefined
     if (c > 0) {
@@ -115,10 +156,7 @@ export function validateCheckoutPayment(
           `TPE-${Date.now().toString(36).toUpperCase().slice(-10)}`
         : undefined
     const mobileMoneyReference =
-      m > 0
-        ? state.mobileRef.trim() ||
-          `${state.mobileOperator.toUpperCase()}-${Date.now().toString(36).slice(-8)}`
-        : undefined
+      m > 0 ? buildMobileRef(state, phoneCheck.phone) : undefined
     return {
       ok: true,
       split: {
@@ -126,6 +164,7 @@ export function validateCheckoutPayment(
         card: cd,
         mobile: m,
         mobileOperator: m > 0 ? state.mobileOperator : undefined,
+        mobilePhone: m > 0 ? phoneCheck.phone : undefined,
       },
       cashReceived,
       changeDue,
@@ -182,6 +221,9 @@ export function validateCheckoutPayment(
     }
   }
 
+  const phoneCheck = resolveMobilePhone(state, false)
+  if (!phoneCheck.ok) return phoneCheck
+
   return {
     ok: true,
     split: {
@@ -189,10 +231,9 @@ export function validateCheckoutPayment(
       card: 0,
       mobile: total,
       mobileOperator: state.mobileOperator,
+      mobilePhone: phoneCheck.phone,
     },
-    mobileMoneyReference:
-      state.mobileRef.trim() ||
-      `${state.mobileOperator.toUpperCase()}-${Date.now().toString(36).slice(-8)}`,
+    mobileMoneyReference: buildMobileRef(state, phoneCheck.phone),
   }
 }
 
@@ -224,6 +265,8 @@ export function confirmCheckoutSummary(
     if (v.cardTpeReference) lines.push(`Réf. TPE : ${v.cardTpeReference}`)
     if (v.mobileMoneyReference)
       lines.push(`Réf. mobile : ${v.mobileMoneyReference}`)
+    if (v.split.mobilePhone)
+      lines.push(`Tél. client : ${v.split.mobilePhone}`)
   } else if (state.method === 'cash' && v.changeDue != null) {
     lines.push(
       `Espèces — Reçu : ${formatFCFA(v.cashReceived!)} · Monnaie : ${formatFCFA(v.changeDue)}`,
@@ -237,6 +280,7 @@ export function confirmCheckoutSummary(
     lines.push(
       `${MOBILE_OPERATOR_LABELS[state.mobileOperator]} — ${formatFCFA(total)}`,
     )
+    if (v.split.mobilePhone) lines.push(`Tél. : ${v.split.mobilePhone}`)
     if (v.mobileMoneyReference)
       lines.push(`Réf. : ${v.mobileMoneyReference}`)
   }

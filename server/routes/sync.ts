@@ -127,6 +127,13 @@ syncRouter.get('/nora/sync/pull', async (req, res) => {
         storeId: row.storeId,
         active: row.active,
         updatedAt: row.updatedAt.getTime(),
+        permissionOverrides:
+          row.permissionOverrides &&
+          typeof row.permissionOverrides === 'object' &&
+          !Array.isArray(row.permissionOverrides)
+            ? row.permissionOverrides
+            : undefined,
+        customRoleId: row.customRoleId ?? undefined,
       })),
       storefrontOrders: orders.map((order) => ({
         id: order.externalId,

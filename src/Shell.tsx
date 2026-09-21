@@ -18,6 +18,7 @@ import {
   type CheckoutComplianceResult,
 } from './components/CheckoutComplianceModal'
 import { CartPanel } from './components/CartPanel'
+import { ManagerOverrideModal } from './components/ManagerOverrideModal'
 import { CaisseHeader } from './components/CaisseHeader'
 import { OfflineBanner } from './components/OfflineBanner'
 import { ReceiptModal } from './components/ReceiptModal'
@@ -57,6 +58,7 @@ import {
 import { DEFAULT_VAT_RATE_PCT, formatFCFA, totalsFromLinesTTC } from './lib/money'
 import { productImageSrc } from './lib/productImage'
 import { appendAuditEvent } from './lib/auditLog'
+import { getQuickSaleFavoriteIds } from './lib/posFavorites'
 import { logCartCancellation } from './lib/refundApply'
 import { SESSION_ID, getOrCreateTerminalId } from './lib/session'
 import {
@@ -140,6 +142,17 @@ const RhManagementView = lazy(() =>
 const CrmView = lazy(() =>
   import('./views/CrmView').then((m) => ({ default: m.CrmView })),
 )
+const SegmentationView = lazy(() =>
+  import('./views/SegmentationView').then((m) => ({
+    default: m.SegmentationView,
+  })),
+)
+const WhatsAppView = lazy(() =>
+  import('./views/WhatsAppView').then((m) => ({ default: m.WhatsAppView })),
+)
+const MarketingView = lazy(() =>
+  import('./views/MarketingView').then((m) => ({ default: m.MarketingView })),
+)
 const TablesManagementView = lazy(() =>
   import('./views/TablesManagementView').then((m) => ({
     default: m.TablesManagementView,
@@ -176,11 +189,30 @@ const JournalReportView = lazy(() =>
 const PersonnelView = lazy(() =>
   import('./views/PersonnelView').then((m) => ({ default: m.PersonnelView })),
 )
+const VendeusesView = lazy(() =>
+  import('./views/VendeusesView').then((m) => ({ default: m.VendeusesView })),
+)
 const PointageView = lazy(() =>
   import('./views/PointageView').then((m) => ({ default: m.PointageView })),
 )
 const AnalytiqueView = lazy(() =>
   import('./views/AnalytiqueView').then((m) => ({ default: m.AnalytiqueView })),
+)
+const ReportingView = lazy(() =>
+  import('./views/ReportingView').then((m) => ({ default: m.ReportingView })),
+)
+const ControleInterneView = lazy(() =>
+  import('./views/ControleInterneView').then((m) => ({
+    default: m.ControleInterneView,
+  })),
+)
+const EvolutiviteView = lazy(() =>
+  import('./views/EvolutiviteView').then((m) => ({
+    default: m.EvolutiviteView,
+  })),
+)
+const RentabiliteView = lazy(() =>
+  import('./views/RentabiliteView').then((m) => ({ default: m.RentabiliteView })),
 )
 const IntegrationsView = lazy(() =>
   import('./views/IntegrationsView').then((m) => ({
@@ -309,7 +341,7 @@ export function Shell({ staff, online, onLogout }: Props) {
   } = useActiveStore()
 
   const toast = useToast()
-  const { canAccessView, organization } = useSubscription()
+  const { canAccessView, organization, subscription } = useSubscription()
   useStorefrontAutoSync()
 
   const perms = useMemo(() => effectivePermissions(staff), [staff])
@@ -366,6 +398,10 @@ export function Shell({ staff, online, onLogout }: Props) {
   )
   const [cart, setCart] = useState<CartLine[]>([])
   const [discountPct, setDiscountPct] = useState(0)
+  const [discountOverrideActive, setDiscountOverrideActive] = useState(false)
+  const [pendingDiscountOverride, setPendingDiscountOverride] = useState<
+    number | null
+  >(null)
   const [promoInput, setPromoInput] = useState('')
   const [promoFeedback, setPromoFeedback] = useState<string | null>(null)
   const [appliedPromotionId, setAppliedPromotionId] = useState<string | null>(null)
@@ -549,8 +585,78 @@ export function Shell({ staff, online, onLogout }: Props) {
   }, [activeView])
 
   useEffect(() => {
+    if (discountOverrideActive) return
     setDiscountPct((d) => Math.min(d, perms.maxDiscountPct))
-  }, [perms.maxDiscountPct])
+  }, [perms.maxDiscountPct, discountOverrideActive])
+
+  const handleApplyManualDiscount = useCallback(
+    (pct: number) => {
+      const max = perms.maxDiscountPct
+      const next = Math.max(0, Math.min(100, pct))
+      if (next === 0) {
+        setDiscountPct(0)
+        setDiscountOverrideActive(false)
+        setAppliedPromotionId(null)
+        setPromoFeedback(null)
+        return
+      }
+      if (next <= max) {
+        setDiscountPct(next)
+        setDiscountOverrideActive(false)
+        setAppliedPromotionId(null)
+        setPromoFeedback(`Remise manuelle ${next} %`)
+        return
+      }
+      setPendingDiscountOverride(next)
+    },
+    [perms.maxDiscountPct],
+  )
+
+  const handleRequestDiscountOverride = useCallback((pct: number) => {
+    const next = Math.max(0, Math.min(100, pct))
+    if (next <= 0) return
+    setPendingDiscountOverride(next)
+  }, [])
+
+  const handleDiscountOverrideVerified = useCallback(
+    (manager: {
+      profileId: string
+      displayName: string
+      role: string
+    }) => {
+      const pct = pendingDiscountOverride
+      setPendingDiscountOverride(null)
+      if (pct == null || pct <= 0) return
+      const prevPct = discountPct
+      setDiscountPct(pct)
+      setDiscountOverrideActive(true)
+      setAppliedPromotionId(null)
+      setPromoFeedback(
+        `Remise ${pct} % autorisée par ${manager.displayName}`,
+      )
+      void appendAuditEvent({
+        kind: 'discount_override',
+        actor: { profileId: staff.id, displayName: staff.displayName },
+        reason: `Remise ${pct} % (plafond ${perms.maxDiscountPct} %) — validée par ${manager.displayName}`,
+        payload: {
+          requestedPct: pct,
+          appliedPct: pct,
+          previousPct: prevPct,
+          maxDiscountPct: perms.maxDiscountPct,
+          managerProfileId: manager.profileId,
+          managerDisplayName: manager.displayName,
+          managerRole: manager.role,
+        },
+      })
+    },
+    [
+      pendingDiscountOverride,
+      discountPct,
+      staff.id,
+      staff.displayName,
+      perms.maxDiscountPct,
+    ],
+  )
 
   const lowStockCount = useMemo(
     () =>
@@ -741,13 +847,23 @@ export function Shell({ staff, online, onLogout }: Props) {
   )
 
   const handleAdd = useCallback(
-    (p: ProductWithStock, originEl?: HTMLElement | null) => {
+    (
+      p: ProductWithStock,
+      originEl?: HTMLElement | null,
+      variant?: { id: string; label: string; priceTTC?: number },
+    ) => {
       if (p.archived) return
       const vat = p.vatRatePct ?? DEFAULT_VAT_RATE_PCT
       const step = qtyStepForProduct(p)
+      const unitPrice = variant?.priceTTC ?? p.priceTTC
+      const lineName = variant ? `${p.name} · ${variant.label}` : p.name
       let didAdd = false
       setCart((prev) => {
-        const line = prev.find((l) => l.productId === p.id)
+        const line = prev.find(
+          (l) =>
+            l.productId === p.id &&
+            (l.variantId ?? undefined) === (variant?.id ?? undefined),
+        )
         const currentQty = line?.qty ?? 0
         const nextQty = roundQty(currentQty + step, step)
         if (blockSaleWhenOutOfStock && nextQty > p.stock + 1e-9) return prev
@@ -757,21 +873,25 @@ export function Shell({ staff, online, onLogout }: Props) {
             ...prev,
             {
               productId: p.id,
-              name: p.name,
-              unitPriceTTC: p.priceTTC,
+              name: lineName,
+              unitPriceTTC: unitPrice,
               qty: step,
               vatRatePct: vat,
+              ...(variant
+                ? { variantId: variant.id, variantLabel: variant.label }
+                : {}),
             },
           ]
         }
         didAdd = true
         return prev.map((l) =>
-          l.productId === p.id
+          l.productId === p.id &&
+          (l.variantId ?? undefined) === (variant?.id ?? undefined)
             ? {
                 ...l,
                 qty: nextQty,
-                unitPriceTTC: p.priceTTC,
-                name: p.name,
+                unitPriceTTC: unitPrice,
+                name: lineName,
                 vatRatePct: vat,
               }
             : l,
@@ -791,6 +911,28 @@ export function Shell({ staff, online, onLogout }: Props) {
     },
     [handleAdd, refocusBarcodeField],
   )
+
+  useEffect(() => {
+    if (activeView !== 'caisse') return
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return
+      const n = Number.parseInt(e.key, 10)
+      if (!Number.isFinite(n) || n < 1 || n > 9) return
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) {
+        return
+      }
+      const favId = getQuickSaleFavoriteIds()[n - 1]
+      if (!favId) return
+      const product = displayProducts.find((p) => p.id === favId)
+      if (!product) return
+      e.preventDefault()
+      handleAddFromGrid(product)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [activeView, displayProducts, handleAddFromGrid])
 
   const handleInc = useCallback(
     (productId: string) => {
@@ -868,6 +1010,8 @@ export function Shell({ staff, online, onLogout }: Props) {
   const handleClear = useCallback(() => {
     setCart([])
     setDiscountPct(0)
+    setDiscountOverrideActive(false)
+    setPendingDiscountOverride(null)
     setPromoInput('')
     setPromoFeedback(null)
     setAppliedPromotionId(null)
@@ -1018,14 +1162,33 @@ export function Shell({ staff, online, onLogout }: Props) {
     (raw: string) => {
       const code = raw.trim()
       if (!code) return
-      const p = displayProducts.find((x) => x.barcode === code)
-      if (p) {
-        handleAdd(p)
-      } else {
-        setSearch(code)
-      }
-      setBarcodeInput('')
-      refocusBarcodeField()
+      void (async () => {
+        const variant = await db.productVariants
+          .where('barcode')
+          .equals(code)
+          .first()
+        if (variant && variant.active) {
+          const p = displayProducts.find((x) => x.id === variant.productId)
+          if (p) {
+            handleAdd(p, null, {
+              id: variant.id,
+              label: variant.label,
+              priceTTC: variant.priceTTC,
+            })
+            setBarcodeInput('')
+            refocusBarcodeField()
+            return
+          }
+        }
+        const p = displayProducts.find((x) => x.barcode === code)
+        if (p) {
+          handleAdd(p)
+        } else {
+          setSearch(code)
+        }
+        setBarcodeInput('')
+        refocusBarcodeField()
+      })()
     },
     [displayProducts, handleAdd, refocusBarcodeField],
   )
@@ -1160,6 +1323,8 @@ export function Shell({ staff, online, onLogout }: Props) {
               lotAllocations: meta?.lotAllocations,
               serialNumbers: meta?.serialNumbers,
               imeiNumbers: meta?.imeiNumbers,
+              variantId: l.variantId,
+              variantLabel: l.variantLabel,
             }
           }),
           subtotalHT: totals.subtotalHT,
@@ -1199,6 +1364,8 @@ export function Shell({ staff, online, onLogout }: Props) {
             db.storeStocks,
             db.productLots,
             db.productSerialUnits,
+            db.productVariants,
+            db.variantStoreStocks,
             db.prescriptions,
             db.promotions,
             db.diningTables,
@@ -1218,7 +1385,15 @@ export function Shell({ staff, online, onLogout }: Props) {
                   `Article « ${line.name} » indisponible (archivé ou supprimé).`,
                 )
               }
-              const lineMeta = metaByProduct.get(line.productId)
+              const lineMeta = {
+                ...(metaByProduct.get(line.productId) ?? {
+                  productId: line.productId,
+                }),
+                productId: line.productId,
+                variantId:
+                  line.variantId ??
+                  metaByProduct.get(line.productId)?.variantId,
+              }
               const mode = await deductTrackedStockForLine({
                 storeId: activeStoreId,
                 line,
@@ -1409,6 +1584,8 @@ export function Shell({ staff, online, onLogout }: Props) {
       }
       setCart([])
       setDiscountPct(0)
+      setDiscountOverrideActive(false)
+      setPendingDiscountOverride(null)
       setPromoInput('')
       setPromoFeedback(null)
       setAppliedPromotionId(null)
@@ -1463,7 +1640,7 @@ export function Shell({ staff, online, onLogout }: Props) {
 
   const handleCheckout = useCallback(async () => {
     if (cart.length === 0) return
-    if (discountPct > perms.maxDiscountPct) {
+    if (discountPct > perms.maxDiscountPct && !discountOverrideActive) {
       toast.error(
         'Remise non autorisée',
         `Plafond de ${perms.maxDiscountPct} % pour ce profil.`,
@@ -1500,6 +1677,7 @@ export function Shell({ staff, online, onLogout }: Props) {
   }, [
     cart.length,
     discountPct,
+    discountOverrideActive,
     perms.maxDiscountPct,
     payableTotalTTC,
     online,
@@ -1562,6 +1740,14 @@ export function Shell({ staff, online, onLogout }: Props) {
           storeId={activeStoreId}
           onClose={() => setCheckoutComplianceOpen(false)}
           onConfirm={handleComplianceConfirm}
+        />
+      ) : null}
+      {pendingDiscountOverride != null ? (
+        <ManagerOverrideModal
+          subtitle={`Autoriser une remise de ${pendingDiscountOverride} % (plafond profil : ${perms.maxDiscountPct} %).`}
+          confirmLabel="Autoriser la remise"
+          onCancel={() => setPendingDiscountOverride(null)}
+          onVerified={handleDiscountOverrideVerified}
         />
       ) : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
@@ -1656,6 +1842,8 @@ export function Shell({ staff, online, onLogout }: Props) {
                 onPromoInputChange={setPromoInput}
                 onApplyPromo={handleApplyPromo}
                 promoFeedback={promoFeedback}
+                onApplyManualDiscount={handleApplyManualDiscount}
+                onRequestDiscountOverride={handleRequestDiscountOverride}
                 tableOptions={diningTables.map((t) => ({
                   id: t.id,
                   name: t.name,
@@ -1747,6 +1935,25 @@ export function Shell({ staff, online, onLogout }: Props) {
               ) : null}
               {activeView === 'crm' ? (
                 <CrmView actor={{ id: staff.id, displayName: staff.displayName }} />
+              ) : null}
+              {activeView === 'segmentation' ? <SegmentationView /> : null}
+              {activeView === 'whatsapp' ? (
+                <WhatsAppView
+                  canManage={
+                    staff.role === 'admin' || staff.role === 'gerant'
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
+              ) : null}
+              {activeView === 'marketing' ? (
+                <MarketingView
+                  canManage={
+                    staff.role === 'admin' ||
+                    staff.role === 'gerant' ||
+                    perms.canEditPrices
+                  }
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
               ) : null}
               {activeView === 'tables' ? (
                 <TablesManagementView
@@ -2126,10 +2333,29 @@ export function Shell({ staff, online, onLogout }: Props) {
                   onViewReceipt={(sale) =>
                     setReceiptOpen({ type: 'sale', sale, autoPrint: false })
                   }
+                  onLoadExchangeToCart={(lines) => {
+                    setCart(lines)
+                    setDiscountPct(0)
+                    setDiscountOverrideActive(false)
+                    setActiveView('caisse')
+                    toast.success(
+                      'Échange → caisse',
+                      'Contrepartie chargée — encaisser le solde',
+                    )
+                  }}
                 />
               ) : null}
               {activeView === 'personnel' ? (
                 <PersonnelView currentProfileId={staff.id} />
+              ) : null}
+              {activeView === 'vendeuses' ? (
+                <VendeusesView
+                  canManage={
+                    staff.role === 'admin' || staff.role === 'gerant'
+                  }
+                  canManageRights={perms.canManagePersonnel}
+                  actor={{ id: staff.id, displayName: staff.displayName }}
+                />
               ) : null}
               {activeView === 'pointage' ? (
                 <PointageView
@@ -2140,6 +2366,29 @@ export function Shell({ staff, online, onLogout }: Props) {
                 />
               ) : null}
               {activeView === 'analytique' ? <AnalytiqueView /> : null}
+              {activeView === 'rentabilite' ? <RentabiliteView /> : null}
+              {activeView === 'reporting' ? <ReportingView /> : null}
+              {activeView === 'controleInterne' ? (
+                <ControleInterneView />
+              ) : null}
+              {activeView === 'evolutivite' ? (
+                <EvolutiviteView
+                  canConfigureStores={perms.canConfigureStoresAdmin}
+                  maxStores={
+                    subscription?.plan?.maxStores ??
+                    (subscription?.planId === 'starter'
+                      ? 1
+                      : subscription?.planId === 'pro'
+                        ? 3
+                        : 0)
+                  }
+                  auditActor={{
+                    profileId: staff.id,
+                    displayName: staff.displayName,
+                  }}
+                  onOpenNetwork={() => handleSelectView('network')}
+                />
+              ) : null}
               {activeView === 'integrations' ? <IntegrationsView /> : null}
               {activeView === 'parametres' ? (
                 <ParametresView
@@ -2156,6 +2405,14 @@ export function Shell({ staff, online, onLogout }: Props) {
                   canConfigureStores={perms.canConfigureStoresAdmin}
                   canCreateTransfers={perms.canManageStocks}
                   profileId={staff.id}
+                  maxStores={
+                    subscription?.plan?.maxStores ??
+                    (subscription?.planId === 'starter'
+                      ? 1
+                      : subscription?.planId === 'pro'
+                        ? 3
+                        : 0)
+                  }
                   auditActor={{
                     profileId: staff.id,
                     displayName: staff.displayName,
@@ -2260,6 +2517,8 @@ export function Shell({ staff, online, onLogout }: Props) {
                       onPromoInputChange={setPromoInput}
                       onApplyPromo={handleApplyPromo}
                       promoFeedback={promoFeedback}
+                      onApplyManualDiscount={handleApplyManualDiscount}
+                      onRequestDiscountOverride={handleRequestDiscountOverride}
                       tableOptions={diningTables.map((t) => ({
                         id: t.id,
                         name: t.name,

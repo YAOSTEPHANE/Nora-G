@@ -1400,11 +1400,11 @@ export function LuxuryStorefrontView({
                 className="storefront-input w-full rounded-xl px-3 py-2 text-sm"
               >
                 {isPublicStorefront && publicStorefront?.waveEnabled ? (
-                  <option value="wave">Wave (paiement immédiat)</option>
+                  <option value="wave">Wave (paiement immédiat FCFA)</option>
                 ) : null}
-                <option value="mobile">Mobile Money</option>
+                <option value="mobile">Mobile Money (OM / MTN / Moov)</option>
                 <option value="card">Carte bancaire</option>
-                <option value="cash">Espèces à la livraison</option>
+                <option value="cash">Espèces à la livraison (FCFA)</option>
               </select>
               {isPublicStorefront &&
               publicStorefront?.waveEnabled &&

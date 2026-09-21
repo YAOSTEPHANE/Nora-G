@@ -22,6 +22,9 @@ import type {
   LoyaltyTransaction,
   HrRequest,
   CrmInteraction,
+  WhatsAppCampaign,
+  WhatsAppCampaignMessage,
+  MarketingCampaign,
   TicketInvoice,
   TerminalNode,
   StockLocation,
@@ -37,6 +40,7 @@ import type {
   Prescription,
   Supplier,
   PurchaseOrder,
+  PurchasePriceHistoryEntry,
   Quote,
   RepairTicket,
   CustomerCreditEntry,
@@ -64,6 +68,7 @@ import type {
   HaccpLog,
   VipClient,
   StaffCommission,
+  SalespersonGoal,
   Layaway,
   ShrinkageEvent,
   AllergenCard,
@@ -72,6 +77,8 @@ import type {
   CareProtocol,
   WineCellarLot,
   CompoundingOrder,
+  ProductVariant,
+  VariantStoreStock,
 } from './types'
 import { DEFAULT_PRODUCT_CATEGORIES } from './types'
 
@@ -129,16 +136,23 @@ import {
   DEMO_STORE_ANNEX_ID,
   SEED_INITIAL_STOCK_ANNEX,
   SEED_INITIAL_STOCK_MAIN,
+  SEED_INITIAL_STOCK_WAREHOUSE,
   SEED_KITCHEN_INGREDIENTS,
   SEED_KITCHEN_STOCK_MAIN,
   SEED_LOYALTY_CUSTOMERS,
   SEED_PRODUCTS,
   SEED_RECIPES,
+  SEED_SUPPLIERS,
   buildSeedDiningTables,
   buildSeedPromotions,
   buildSeedSales,
 } from './seed'
-import { DEFAULT_STORE_ID, SEED_STORES, TEST_STORE_ANNEX_ID } from './seedStores'
+import {
+  CENTRAL_WAREHOUSE_ID,
+  DEFAULT_STORE_ID,
+  SEED_STORES,
+  TEST_STORE_ANNEX_ID,
+} from './seedStores'
 import { getOrganizationCredentials } from '../lib/subscription/store'
 import { setLastSyncTimestamp } from '../lib/syncMeta'
 import {
@@ -170,6 +184,9 @@ export class NoraDB extends Dexie {
   loyaltyTransactions!: Table<LoyaltyTransaction, string>
   hrRequests!: Table<HrRequest, string>
   crmInteractions!: Table<CrmInteraction, string>
+  whatsappCampaigns!: Table<WhatsAppCampaign, string>
+  whatsappCampaignMessages!: Table<WhatsAppCampaignMessage, string>
+  marketingCampaigns!: Table<MarketingCampaign, string>
   ticketInvoices!: Table<TicketInvoice, string>
   terminalNodes!: Table<TerminalNode, string>
   tableReservations!: Table<TableReservation, string>
@@ -182,6 +199,7 @@ export class NoraDB extends Dexie {
   prescriptions!: Table<Prescription, string>
   suppliers!: Table<Supplier, string>
   purchaseOrders!: Table<PurchaseOrder, string>
+  purchasePriceHistory!: Table<PurchasePriceHistoryEntry, string>
   quotes!: Table<Quote, string>
   repairTickets!: Table<RepairTicket, string>
   customerCreditEntries!: Table<CustomerCreditEntry, string>
@@ -209,6 +227,7 @@ export class NoraDB extends Dexie {
   haccpLogs!: Table<HaccpLog, string>
   vipClients!: Table<VipClient, string>
   staffCommissions!: Table<StaffCommission, string>
+  salespersonGoals!: Table<SalespersonGoal, string>
   layaways!: Table<Layaway, string>
   shrinkageEvents!: Table<ShrinkageEvent, string>
   allergenCards!: Table<AllergenCard, string>
@@ -217,6 +236,8 @@ export class NoraDB extends Dexie {
   careProtocols!: Table<CareProtocol, string>
   wineCellarLots!: Table<WineCellarLot, string>
   compoundingOrders!: Table<CompoundingOrder, string>
+  productVariants!: Table<ProductVariant, string>
+  variantStoreStocks!: Table<VariantStoreStock, string>
 
   constructor() {
     super(databaseNameForCurrentOrganization())
@@ -895,6 +916,32 @@ export class NoraDB extends Dexie {
       compoundingOrders:
         'id, storeId, status, dueYmd, createdAt, [storeId+status]',
     })
+    this.version(29).stores({
+      productVariants:
+        'id, productId, barcode, sku, active, sortOrder, [productId+active]',
+      variantStoreStocks:
+        'id, storeId, productId, variantId, [storeId+productId], [storeId+variantId]',
+    })
+    this.version(30).stores({
+      purchasePriceHistory:
+        'id, productId, supplierId, purchaseOrderId, storeId, createdAt, [productId+createdAt], [storeId+createdAt]',
+    })
+    this.version(31).stores({
+      salespersonGoals:
+        'id, staffProfileId, storeId, periodStartYmd, periodEndYmd, [staffProfileId+periodStartYmd]',
+      staffCommissions:
+        'id, storeId, status, createdAt, staffName, staffProfileId, [storeId+status]',
+    })
+    this.version(32).stores({
+      whatsappCampaigns:
+        'id, storeId, status, kind, createdAt, [storeId+createdAt]',
+      whatsappCampaignMessages:
+        'id, campaignId, customerId, status, createdAt, [campaignId+status]',
+    })
+    this.version(33).stores({
+      marketingCampaigns:
+        'id, storeId, status, promoCode, createdAt, startedAt, [storeId+createdAt], [storeId+status]',
+    })
   }
 }
 
@@ -1116,6 +1163,24 @@ async function ensureStores(): Promise<void> {
         await db.stores.put(store)
       }
     }
+    return
+  }
+  // Bases déjà peuplées : ajouter l’entrepôt / patcher le kind sans écraser les renommages.
+  for (const seed of SEED_STORES) {
+    const existing = await db.stores.get(seed.id)
+    if (!existing) {
+      await db.stores.put(seed)
+      continue
+    }
+    const patch: Partial<Store> = {}
+    if (seed.kind && existing.kind !== seed.kind) patch.kind = seed.kind
+    if (seed.id === CENTRAL_WAREHOUSE_ID) {
+      if (!existing.name) patch.name = seed.name
+      if (!existing.shortCode) patch.shortCode = seed.shortCode
+    }
+    if (Object.keys(patch).length > 0) {
+      await db.stores.update(seed.id, patch)
+    }
   }
 }
 
@@ -1145,6 +1210,9 @@ export async function wipeLocalBusinessData(): Promise<void> {
     db.loyaltyTransactions.clear(),
     db.hrRequests.clear(),
     db.crmInteractions.clear(),
+    db.whatsappCampaigns.clear(),
+    db.whatsappCampaignMessages.clear(),
+    db.marketingCampaigns.clear(),
     db.ticketInvoices.clear(),
     db.terminalNodes.clear(),
     db.tableReservations.clear(),
@@ -1157,6 +1225,7 @@ export async function wipeLocalBusinessData(): Promise<void> {
     db.prescriptions.clear(),
     db.suppliers.clear(),
     db.purchaseOrders.clear(),
+    db.purchasePriceHistory.clear(),
     db.quotes.clear(),
     db.repairTickets.clear(),
     db.customerCreditEntries.clear(),
@@ -1184,6 +1253,7 @@ export async function wipeLocalBusinessData(): Promise<void> {
     db.haccpLogs.clear(),
     db.vipClients.clear(),
     db.staffCommissions.clear(),
+    db.salespersonGoals.clear(),
     db.layaways.clear(),
     db.shrinkageEvents.clear(),
     db.allergenCards.clear(),
@@ -1192,6 +1262,8 @@ export async function wipeLocalBusinessData(): Promise<void> {
     db.careProtocols.clear(),
     db.wineCellarLots.clear(),
     db.compoundingOrders.clear(),
+    db.productVariants.clear(),
+    db.variantStoreStocks.clear(),
   ])
   // Magasins : on garde la structure minimale via ensureStores ensuite.
   const stores = await db.stores.toArray()
@@ -1415,6 +1487,14 @@ async function injectTestCatalog(): Promise<void> {
       stock,
     })
   }
+  for (const [productId, stock] of Object.entries(SEED_INITIAL_STOCK_WAREHOUSE)) {
+    stockRows.push({
+      id: storeStockRowId(CENTRAL_WAREHOUSE_ID, productId),
+      storeId: CENTRAL_WAREHOUSE_ID,
+      productId,
+      stock,
+    })
+  }
   if (stockRows.length > 0) {
     await db.storeStocks.bulkPut(stockRows)
   }
@@ -1437,6 +1517,7 @@ async function injectTestCatalog(): Promise<void> {
   await db.diningTables.bulkPut(buildSeedDiningTables(DEFAULT_STORE_ID))
   await db.promotions.bulkPut(buildSeedPromotions())
   await db.loyaltyCustomers.bulkPut(SEED_LOYALTY_CUSTOMERS)
+  await db.suppliers.bulkPut(SEED_SUPPLIERS)
 
   const existingSaleIds = new Set((await db.sales.toArray()).map((s) => s.id))
   const salesToAdd = buildSeedSales().filter((s) => !existingSaleIds.has(s.id))

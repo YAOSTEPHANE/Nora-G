@@ -109,11 +109,12 @@ export function OrgPaymentProvidersPanel({ licenseKey }: Props) {
       <CardContent className="space-y-4">
         <div>
           <h3 className="text-[14px] font-semibold text-zinc-900">
-            Wave & Orange Money (votre boutique)
+            Paiements Côte d’Ivoire (votre boutique)
           </h3>
           <p className="mt-1 text-[12px] text-zinc-500">
-            Chaque magasin a ses propres clés. Les clients paient sur{' '}
-            <strong>votre</strong> compte Wave / CinetPay (Orange Money), pas
+            Devise <strong>FCFA (XOF)</strong>. Wave en direct ; Orange Money,
+            MTN MoMo et Moov Money via CinetPay (canaux ORANGE_MONEY / MTN /
+            MOOV). Les clients paient sur <strong>votre</strong> compte, pas
             celui de la plateforme.
           </p>
         </div>
@@ -221,13 +222,16 @@ export function OrgPaymentProvidersPanel({ licenseKey }: Props) {
 
           <div className="space-y-3 rounded-xl border border-border/70 p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[13px] font-semibold">Orange Money</p>
+              <p className="text-[13px] font-semibold">
+                Orange Money · MTN MoMo · Moov Money
+              </p>
               <Badge tone={status?.orangeMoney.enabled ? 'success' : 'neutral'}>
                 {status?.orangeMoney.enabled ? 'Actif' : 'Inactif'}
               </Badge>
             </div>
             <p className="text-[11px] text-zinc-500">
-              Via CinetPay (canal ORANGE_MONEY).
+              Via CinetPay CI — canaux ORANGE_MONEY, MTN, MOOV (et WAVE si
+              activé côté CinetPay).
             </p>
             <Field label="Clé API CinetPay">
               <Input

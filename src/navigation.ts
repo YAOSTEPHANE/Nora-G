@@ -8,6 +8,9 @@ export type NavViewId =
   | 'comptabilite'
   | 'rh'
   | 'crm'
+  | 'segmentation'
+  | 'whatsapp'
+  | 'marketing'
   | 'tables'
   | 'promotions'
   | 'loyalty'
@@ -16,8 +19,13 @@ export type NavViewId =
   | 'onlineOrders'
   | 'journal'
   | 'personnel'
+  | 'vendeuses'
   | 'pointage'
   | 'analytique'
+  | 'rentabilite'
+  | 'reporting'
+  | 'controleInterne'
+  | 'evolutivite'
   | 'integrations'
   | 'parametres'
   | 'network'
@@ -63,6 +71,9 @@ export const VIEW_LABELS: Record<NavViewId, string> = {
   comptabilite: 'Compta',
   rh: 'RH',
   crm: 'Clients',
+  segmentation: 'Segments',
+  whatsapp: 'WhatsApp',
+  marketing: 'Marketing',
   tables: 'Tables',
   promotions: 'Offres',
   loyalty: 'Fidélité',
@@ -71,8 +82,13 @@ export const VIEW_LABELS: Record<NavViewId, string> = {
   onlineOrders: 'Commandes',
   journal: 'Journal',
   personnel: 'Équipe',
+  vendeuses: 'Vendeuses',
   pointage: 'Présences',
   analytique: 'Stats',
+  rentabilite: 'Marges',
+  reporting: 'Pilotage',
+  controleInterne: 'Contrôle',
+  evolutivite: 'Évolutivité',
   integrations: 'Connexions',
   parametres: 'Réglages',
   network: 'Magasins',
@@ -114,10 +130,13 @@ export const VIEW_SUBTITLES: Record<NavViewId, string> = {
   dash: 'Ouvrez un module pour continuer',
   caisse: 'Encaissement, panier et TVA',
   catalogue: 'Produits, prix et codes-barres',
-  stocks: 'Niveaux, alertes et inventaire manuel',
+  stocks: 'Stock temps réel, alertes, variantes, inventaire et stock dormant',
   comptabilite: 'Journaux HT/TVA et exports',
   rh: 'Demandes et validations manager',
   crm: 'Fiches clients et relances',
+  segmentation: 'VIP, inactives, produits, boutique et fréquence',
+  whatsapp: 'Campagnes ciblées, relances et réactivation clientes',
+  marketing: 'Promotions, fidélité, campagnes par segment et CA généré',
   tables: 'Occupation et réservations',
   promotions: 'Codes promo et seuils panier',
   loyalty: 'Points et historique clients',
@@ -126,12 +145,17 @@ export const VIEW_SUBTITLES: Record<NavViewId, string> = {
   onlineOrders: 'Validation des commandes web',
   journal: 'Synthèse du jour et reçus',
   personnel: 'Profils, rôles et accès',
+  vendeuses: 'CA, objectifs, commissions et droits vendeuses',
   pointage: 'Arrivées et départs par magasin',
   analytique: 'CA, top produits et marges',
+  rentabilite: 'Marge produit, boutique, période et vendeuse',
+  reporting: 'CA, marge, stock, rotation, panier et perf. boutique / produit / vendeuse',
+  controleInterne: 'Remises, annulations, retours, prix, stock et actions vendeuses',
+  evolutivite: '1→N boutiques sans changer de système · connectivité IA',
   integrations: 'Partenaires et marketplaces',
   parametres: 'Magasin, terminal et périphériques',
-  network: 'Sites, stocks et transferts',
-  achats: 'Fournisseurs, bons de commande et réceptions',
+  network: 'Réseau multi-boutiques, entrepôt et transferts',
+  achats: 'Fournisseurs, commandes, réceptions et coûts d’achat',
   devis: 'Devis clients et conversion en vente',
   sav: 'Atelier réparations et garanties',
   credits: 'Encours clients, échéances et règlements',
@@ -233,6 +257,24 @@ export const VIEW_ACCENTS: Record<NavViewId, ViewAccent> = {
     labelActive: 'text-cyan-900',
     chip: 'bg-cyan-100 text-cyan-800',
   },
+  segmentation: {
+    icon: 'text-teal-600 bg-teal-50',
+    iconActive: 'text-teal-700 bg-teal-100',
+    labelActive: 'text-teal-900',
+    chip: 'bg-teal-100 text-teal-800',
+  },
+  whatsapp: {
+    icon: 'text-emerald-600 bg-emerald-50',
+    iconActive: 'text-emerald-700 bg-emerald-100',
+    labelActive: 'text-emerald-900',
+    chip: 'bg-emerald-100 text-emerald-800',
+  },
+  marketing: {
+    icon: 'text-fuchsia-600 bg-fuchsia-50',
+    iconActive: 'text-fuchsia-700 bg-fuchsia-100',
+    labelActive: 'text-fuchsia-900',
+    chip: 'bg-fuchsia-100 text-fuchsia-800',
+  },
   tables: {
     icon: 'text-orange-600 bg-orange-50',
     iconActive: 'text-orange-700 bg-orange-100',
@@ -281,6 +323,12 @@ export const VIEW_ACCENTS: Record<NavViewId, ViewAccent> = {
     labelActive: 'text-pink-900',
     chip: 'bg-pink-100 text-pink-800',
   },
+  vendeuses: {
+    icon: 'text-rose-600 bg-rose-50',
+    iconActive: 'text-rose-700 bg-rose-100',
+    labelActive: 'text-rose-900',
+    chip: 'bg-rose-100 text-rose-800',
+  },
   pointage: {
     icon: 'text-lime-600 bg-lime-50',
     iconActive: 'text-lime-700 bg-lime-100',
@@ -292,6 +340,30 @@ export const VIEW_ACCENTS: Record<NavViewId, ViewAccent> = {
     iconActive: 'text-purple-700 bg-purple-100',
     labelActive: 'text-purple-900',
     chip: 'bg-purple-100 text-purple-800',
+  },
+  rentabilite: {
+    icon: 'text-fuchsia-600 bg-fuchsia-50',
+    iconActive: 'text-fuchsia-700 bg-fuchsia-100',
+    labelActive: 'text-fuchsia-900',
+    chip: 'bg-fuchsia-100 text-fuchsia-800',
+  },
+  reporting: {
+    icon: 'text-indigo-600 bg-indigo-50',
+    iconActive: 'text-indigo-700 bg-indigo-100',
+    labelActive: 'text-indigo-900',
+    chip: 'bg-indigo-100 text-indigo-800',
+  },
+  controleInterne: {
+    icon: 'text-slate-600 bg-slate-50',
+    iconActive: 'text-slate-800 bg-slate-200',
+    labelActive: 'text-slate-900',
+    chip: 'bg-slate-200 text-slate-800',
+  },
+  evolutivite: {
+    icon: 'text-violet-600 bg-violet-50',
+    iconActive: 'text-violet-700 bg-violet-100',
+    labelActive: 'text-violet-900',
+    chip: 'bg-violet-100 text-violet-800',
   },
   integrations: {
     icon: 'text-cyan-600 bg-cyan-50',
@@ -518,6 +590,9 @@ const NAV_SECTION_GESTION: NavSection = {
     navItem('comptabilite'),
     navItem('rh'),
     navItem('crm'),
+    navItem('segmentation'),
+    navItem('whatsapp'),
+    navItem('marketing'),
     navItem('tables'),
     navItem('promotions'),
     navItem('loyalty'),
@@ -670,12 +745,24 @@ const NAV_SECTION_MAGISTRALES: NavSection = {
 
 const NAV_SECTION_ORGANISATION: NavSection = {
   title: 'Organisation',
-  items: [navItem('personnel'), navItem('pointage'), navItem('analytique')],
+  items: [
+    navItem('personnel'),
+    navItem('vendeuses'),
+    navItem('pointage'),
+    navItem('analytique'),
+    navItem('rentabilite'),
+    navItem('reporting'),
+    navItem('controleInterne'),
+  ],
 }
 
 const NAV_SECTION_SYSTEME: NavSection = {
   title: 'Système',
-  items: [navItem('parametres'), navItem('integrations')],
+  items: [
+    navItem('evolutivite'),
+    navItem('parametres'),
+    navItem('integrations'),
+  ],
 }
 
 export const NAV_SECTIONS: readonly NavSection[] = [
@@ -773,11 +860,18 @@ const NAV_SECTIONS_GERANT: readonly NavSection[] = [
   NAV_SECTION_MAGISTRALES,
   {
     title: 'Organisation',
-    items: [navItem('pointage'), navItem('analytique')],
+    items: [
+      navItem('vendeuses'),
+      navItem('pointage'),
+      navItem('analytique'),
+      navItem('rentabilite'),
+      navItem('reporting'),
+      navItem('controleInterne'),
+    ],
   },
   {
     title: 'Système',
-    items: [navItem('parametres')],
+    items: [navItem('evolutivite'), navItem('parametres')],
   },
 ]
 

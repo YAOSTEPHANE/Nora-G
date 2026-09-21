@@ -1,8 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { RefundSaleModal } from '../components/RefundSaleModal'
+import { ExchangeSaleModal } from '../components/ExchangeSaleModal'
+import { VoidSaleModal } from '../components/VoidSaleModal'
 import { db } from '../db/db'
-import type { AuditEvent, AuditEventKind, CashOutflow, Sale } from '../db/types'
+import type { AuditEvent, AuditEventKind, CartLine, CashOutflow, Sale } from '../db/types'
 import type { UserRole } from '../auth/types'
 import { downloadTextFile, toCsvSemicolon } from '../lib/analyticsExport'
 import { appendAuditEvent } from '../lib/auditLog'
@@ -12,10 +14,10 @@ import {
   sumChangeDue,
 } from '../lib/cashOutflows'
 import { periodMarginTotals } from '../lib/marginAnalytics'
-import { formatFCFA } from '../lib/money'
+import { formatFCFA, DEFAULT_VAT_RATE_PCT } from '../lib/money'
 import { getAppSettings } from '../lib/appSettings'
 import { featuresForDomain } from '../lib/businessDomain'
-import { paymentMethodShortLabel } from '../lib/paymentDisplay'
+import { paymentMethodShortLabel, salePaymentShortLabel } from '../lib/paymentDisplay'
 import { saleFullyRefunded, saleNetTTC } from '../lib/refundMath'
 import {
   filterSalesToday,
@@ -52,12 +54,20 @@ function auditKindLabel(k: AuditEventKind): string {
       return 'Annulation panier'
     case 'sale_refund':
       return 'Remboursement'
+    case 'sale_void':
+      return 'Annulation vente'
+    case 'sale_exchange':
+      return 'Échange'
     case 'promo_applied':
       return 'Code promo'
+    case 'discount_override':
+      return 'Remise gérant'
     case 'stock_adjusted':
       return 'Modification stock'
     case 'stock_transfer':
       return 'Transfert'
+    case 'product_deleted':
+      return 'Suppression produit'
     case 'time_punch':
       return 'Pointage'
     case 'ticket_invoice_updated':
@@ -66,8 +76,16 @@ function auditKindLabel(k: AuditEventKind): string {
       return 'Clôture journalière'
     case 'day_reopen':
       return 'Réouverture journalière'
-    default:
-      return k
+    case 'price_changed':
+      return 'Modification de prix'
+    case 'customer_return':
+      return 'Retour client'
+    case 'shrinkage':
+      return 'Perte / casse'
+    default: {
+      const _exhaustive: never = k
+      return _exhaustive
+    }
   }
 }
 
@@ -81,6 +99,17 @@ function auditPayloadSummary(ev: AuditEvent): string | null {
       return typeof code === 'string'
         ? `${code} → ${String(applied)} % (avant ${String(prev)} %)`
         : null
+    }
+    if (ev.kind === 'discount_override') {
+      const applied = o.appliedPct
+      const manager = o.managerDisplayName
+      return typeof applied === 'number'
+        ? `${applied} % · ${String(manager ?? 'gérant')}`
+        : null
+    }
+    if (ev.kind === 'sale_void' || ev.kind === 'sale_exchange') {
+      const amount = o.amountTTC ?? o.returnedAmountTTC
+      return typeof amount === 'number' ? formatFCFA(amount) : null
     }
     if (ev.kind === 'stock_adjusted') {
       const pq = o.previousQty
@@ -126,6 +155,36 @@ function auditPayloadSummary(ev: AuditEvent): string | null {
       }
       return refPart
     }
+    if (ev.kind === 'price_changed') {
+      const name = o.productName
+      const before = o.previousPriceTTC
+      const after = o.newPriceTTC
+      if (typeof before === 'number' && typeof after === 'number') {
+        return `${String(name ?? 'Article')} · ${formatFCFA(before)} → ${formatFCFA(after)}`
+      }
+      return typeof name === 'string' ? name : null
+    }
+    if (ev.kind === 'customer_return') {
+      const ref = o.reference
+      const amount = o.amountTTC
+      const product = o.productName
+      return [
+        typeof ref === 'string' ? ref : null,
+        typeof product === 'string' ? product : null,
+        typeof amount === 'number' ? formatFCFA(amount) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || null
+    }
+    if (ev.kind === 'shrinkage') {
+      return [
+        typeof o.kind === 'string' ? o.kind : null,
+        typeof o.productName === 'string' ? o.productName : null,
+        typeof o.amountTTC === 'number' ? formatFCFA(o.amountTTC) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || null
+    }
     return null
   } catch {
     return null
@@ -139,6 +198,8 @@ type Props = {
   currentProfile: { id: string; displayName: string }
   currentRole: UserRole
   onViewReceipt: (sale: Sale) => void
+  /** Charge la contrepartie d’un échange dans le panier caisse. */
+  onLoadExchangeToCart?: (lines: CartLine[]) => void
 }
 
 export function JournalReportView({
@@ -148,6 +209,7 @@ export function JournalReportView({
   currentProfile,
   currentRole,
   onViewReceipt,
+  onLoadExchangeToCart,
 }: Props) {
   const toast = useToast()
   const showPrescriptions = featuresForDomain(
@@ -155,6 +217,8 @@ export function JournalReportView({
   ).prescription
   const sales = useLiveQuery(() => db.sales.toArray(), [], []) ?? []
   const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const priceHistory =
+    useLiveQuery(() => db.purchasePriceHistory.toArray(), [], []) ?? []
   const allCashOutflows =
     useLiveQuery(() => db.cashOutflows.toArray(), [], []) ?? []
   const allAuditEvents =
@@ -195,8 +259,8 @@ export function JournalReportView({
   )
   const changeDueToday = useMemo(() => sumChangeDue(today), [today])
   const marginToday = useMemo(
-    () => periodMarginTotals(today, products),
-    [today, products],
+    () => periodMarginTotals(today, products, priceHistory),
+    [today, products, priceHistory],
   )
   const auditEvents = useMemo(
     () =>
@@ -251,6 +315,8 @@ export function JournalReportView({
   const [outflowLabelEdit, setOutflowLabelEdit] = useState('')
   const [busy, setBusy] = useState(false)
   const [refundSale, setRefundSale] = useState<Sale | null>(null)
+  const [voidSale, setVoidSale] = useState<Sale | null>(null)
+  const [exchangeSale, setExchangeSale] = useState<Sale | null>(null)
   const [pendingClosureUntil, setPendingClosureUntil] = useState(0)
   const [pendingReopenUntil, setPendingReopenUntil] = useState(0)
   const [reportTab, setReportTab] = useState<ReportTab>('overview')
@@ -291,7 +357,7 @@ export function JournalReportView({
         s.id.toLowerCase().includes(q) ||
         (s.cashierDisplayName ?? '').toLowerCase().includes(q) ||
         (s.storeName ?? '').toLowerCase().includes(q) ||
-        paymentMethodShortLabel(s.paymentMethod).toLowerCase().includes(q),
+        salePaymentShortLabel(s).toLowerCase().includes(q),
     )
   }, [today, saleSearch])
 
@@ -541,7 +607,7 @@ export function JournalReportView({
           }),
           s.storeName ?? '',
           s.cashierDisplayName ?? '',
-          paymentMethodShortLabel(s.paymentMethod),
+          salePaymentShortLabel(s),
           String(saleNetTTC(s)),
         ]),
     ]
@@ -1052,7 +1118,11 @@ export function JournalReportView({
                 <Th>Paiement</Th>
                 <Th align="right">Net</Th>
                 <Th align="right">Reçu</Th>
-                {canProcessRefunds ? <Th align="right" hideBelow="sm">Remb.</Th> : null}
+                {canProcessRefunds ? (
+                  <Th align="right" hideBelow="sm">
+                    Actions
+                  </Th>
+                ) : null}
               </Tr>
             </THead>
             <TBody>
@@ -1072,7 +1142,7 @@ export function JournalReportView({
                     </Td>
                     <Td>
                       <span className="block">
-                        {paymentMethodShortLabel(s.paymentMethod)}
+                        {salePaymentShortLabel(s)}
                       </span>
                       {saleFullyRefunded(s) ? (
                         <Badge tone="warning" className="mt-0.5">
@@ -1104,15 +1174,33 @@ export function JournalReportView({
                         {saleFullyRefunded(s) ? (
                           <span className="text-[11px] text-zinc-400">—</span>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            iconLeft={<IconRefund />}
-                            onClick={() => setRefundSale(s)}
-                            aria-label="Rembourser"
-                          >
-                            <span className="hidden md:inline">Rembourser</span>
-                          </Button>
+                          <div className="flex flex-wrap justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              iconLeft={<IconRefund />}
+                              onClick={() => setRefundSale(s)}
+                              aria-label="Rembourser"
+                            >
+                              <span className="hidden lg:inline">Remb.</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setExchangeSale(s)}
+                              aria-label="Échanger"
+                            >
+                              Éch.
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setVoidSale(s)}
+                              aria-label="Annuler la vente"
+                            >
+                              Void
+                            </Button>
+                          </div>
                         )}
                       </Td>
                     ) : null}
@@ -1133,7 +1221,7 @@ export function JournalReportView({
                         minute: '2-digit',
                       })}
                       {' · '}
-                      {paymentMethodShortLabel(s.paymentMethod)}
+                      {salePaymentShortLabel(s)}
                     </p>
                     <p className="truncate text-[11px] text-zinc-500">
                       {s.cashierDisplayName ?? '—'}
@@ -1157,13 +1245,31 @@ export function JournalReportView({
                       aria-label="Voir reçu"
                     />
                     {canProcessRefunds && !saleFullyRefunded(s) ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        iconLeft={<IconRefund />}
-                        onClick={() => setRefundSale(s)}
-                        aria-label="Rembourser"
-                      />
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          iconLeft={<IconRefund />}
+                          onClick={() => setRefundSale(s)}
+                          aria-label="Rembourser"
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setExchangeSale(s)}
+                          aria-label="Échanger"
+                        >
+                          Éch.
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setVoidSale(s)}
+                          aria-label="Annuler la vente"
+                        >
+                          Void
+                        </Button>
+                      </>
                     ) : null}
                   </div>
                 </div>
@@ -1283,6 +1389,39 @@ export function JournalReportView({
           }}
           onClose={() => setRefundSale(null)}
           onDone={() => {}}
+        />
+      ) : null}
+      {voidSale ? (
+        <VoidSaleModal
+          sale={voidSale}
+          actor={{
+            profileId: currentProfile.id,
+            displayName: currentProfile.displayName,
+          }}
+          onClose={() => setVoidSale(null)}
+          onDone={() => {}}
+        />
+      ) : null}
+      {exchangeSale ? (
+        <ExchangeSaleModal
+          sale={exchangeSale}
+          products={products}
+          actor={{
+            profileId: currentProfile.id,
+            displayName: currentProfile.displayName,
+          }}
+          onClose={() => setExchangeSale(null)}
+          onDone={(lines) => {
+            onLoadExchangeToCart?.(
+              lines.map((l) => ({
+                productId: l.productId,
+                name: l.name,
+                unitPriceTTC: l.unitPriceTTC,
+                qty: l.qty,
+                vatRatePct: l.vatRatePct ?? DEFAULT_VAT_RATE_PCT,
+              })),
+            )
+          }}
         />
       ) : null}
     </div>

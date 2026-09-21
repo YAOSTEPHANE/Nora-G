@@ -2,7 +2,8 @@ import type { OnlineOrder, Sale, TicketInvoice } from '../../db/types'
 import { getAppSettings } from '../appSettings'
 import { formatFCFA, vatSlicesFromLinesTTC } from '../money'
 import {
-  paymentMethodShortLabel,
+  describeSalePayment,
+  mobileMoneyLineLabel,
   salePaymentAmounts,
 } from '../paymentDisplay'
 import { saleNetTTC } from '../refundMath'
@@ -218,16 +219,18 @@ export function buildEscPosReceipt(
             : order.paymentMethod === 'card'
               ? 'Carte bancaire'
               : order.paymentMethod === 'mobile'
-                ? 'Mobile money'
+                ? 'Mobile money CI'
                 : 'Paiement mixte'
-          : paymentMethodShortLabel(sale.paymentMethod),
+          : describeSalePayment(sale).slice(0, 42),
       ),
       cmdAlign('left'),
     )
-    if (amt.cash > 0) chunks.push(textLine(padLine('Especes', formatFCFA(amt.cash))))
+    if (amt.cash > 0) chunks.push(textLine(padLine('Especes FCFA', formatFCFA(amt.cash))))
     if (amt.card > 0) chunks.push(textLine(padLine('Carte (TPE)', formatFCFA(amt.card))))
     if (amt.mobile > 0) {
-      chunks.push(textLine(padLine('Mobile money', formatFCFA(amt.mobile))))
+      chunks.push(
+        textLine(padLine(mobileMoneyLineLabel(sale).slice(0, 16), formatFCFA(amt.mobile))),
+      )
     }
     if (sale.cashReceived != null) {
       chunks.push(textLine(padLine('Recu', formatFCFA(sale.cashReceived))))

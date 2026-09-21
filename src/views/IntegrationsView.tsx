@@ -48,8 +48,8 @@ type TabId = 'paiements' | 'marketplace' | 'api' | 'mobile'
 
 const PARTNERS = [
   {
-    name: 'Mobile money agrégateur',
-    desc: 'Orchestration Orange Money, MTN MoMo, Wave — partenariat à contractualiser.',
+    name: 'Mobile money Côte d’Ivoire',
+    desc: 'Wave, Orange Money, MTN MoMo, Moov Money — FCFA (XOF), caisse et boutique en ligne.',
   },
   {
     name: 'Transport & livraison',

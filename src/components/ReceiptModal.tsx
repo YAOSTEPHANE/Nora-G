@@ -3,8 +3,10 @@ import type { OnlineOrder, Sale, TicketInvoice } from '../db/types'
 import { getAppSettings } from '../lib/appSettings'
 import { formatFCFA, vatSlicesFromLinesTTC } from '../lib/money'
 import {
-  paymentMethodShortLabel,
+  describeSalePayment,
+  mobileMoneyLineLabel,
   salePaymentAmounts,
+  saleMobilePhone,
 } from '../lib/paymentDisplay'
 import {
   printReceipt as printReceiptJob,
@@ -573,12 +575,12 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
           <p className="mt-1 text-center font-semibold text-zinc-900">
             {order
               ? onlineOrderPaymentCaption(order.paymentMethod)
-              : paymentMethodShortLabel(sale.paymentMethod)}
+              : describeSalePayment(sale)}
           </p>
           <ul className="mt-2 space-y-1 font-mono-nums text-zinc-700">
             {amt.cash > 0 ? (
               <li className="flex justify-between">
-                <span>Espèces</span>
+                <span>Espèces (FCFA)</span>
                 <span>{formatFCFA(amt.cash)}</span>
               </li>
             ) : null}
@@ -590,7 +592,7 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
             ) : null}
             {amt.mobile > 0 ? (
               <li className="flex justify-between">
-                <span>Mobile money</span>
+                <span>{mobileMoneyLineLabel(sale)}</span>
                 <span>{formatFCFA(amt.mobile)}</span>
               </li>
             ) : null}
@@ -613,6 +615,11 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
           {sale.mobileMoneyReference ? (
             <p className="font-mono text-[10px] text-zinc-500">
               Réf. mobile : {sale.mobileMoneyReference}
+            </p>
+          ) : null}
+          {saleMobilePhone(sale) ? (
+            <p className="font-mono text-[10px] text-zinc-500">
+              Tél. : {saleMobilePhone(sale)}
             </p>
           ) : null}
           </div>

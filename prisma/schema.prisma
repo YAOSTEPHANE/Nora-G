@@ -98,20 +98,24 @@ model OrgSession {
 }
 
 model StaffMember {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId String       @db.ObjectId
-  profileId      String
-  displayName    String
-  initials       String
-  role           String
-  storeId        String?
-  pinHash        String
-  passwordHash   String?
-  active         Boolean      @default(true)
-  revokedAt      DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                   String       @id @default(auto()) @map("_id") @db.ObjectId
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId       String       @db.ObjectId
+  profileId            String
+  displayName          String
+  initials             String
+  role                 String
+  storeId              String?
+  pinHash              String
+  passwordHash         String?
+  active               Boolean      @default(true)
+  /** Overrides granulaires des droits (JSON StaffPermissions partiel). */
+  permissionOverrides  Json?
+  /** Rôle métier custom côté client (id local). */
+  customRoleId         String?
+  revokedAt            DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
   @@unique([organizationId, profileId])
   @@index([organizationId, active])

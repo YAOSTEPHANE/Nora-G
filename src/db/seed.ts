@@ -6,6 +6,7 @@ import type {
   ProductRecipeIngredient,
   Promotion,
   Sale,
+  Supplier,
 } from './types'
 
 /** Magasin principal (aligné avec seedStores). */
@@ -65,6 +66,65 @@ export const SEED_INITIAL_STOCK_ANNEX: Record<string, number> = {
   p11: 4,
   p13: 12,
 }
+
+/** Stocks initiaux entrepôt central (réassort réseau). */
+export const SEED_INITIAL_STOCK_WAREHOUSE: Record<string, number> = {
+  p1: 240,
+  p2: 80,
+  p3: 60,
+  p4: 160,
+  p5: 50,
+  p6: 90,
+  p7: 100,
+  p8: 40,
+  p9: 400,
+  p10: 90,
+  p11: 70,
+  p12: 120,
+  p13: 200,
+  p14: 55,
+  p15: 80,
+  p16: 45,
+  p17: 90,
+  p18: 70,
+}
+
+/** Fournisseurs de démonstration (achats). */
+export const SEED_SUPPLIERS: Supplier[] = [
+  {
+    id: 'sup-ci-distribution',
+    name: 'CI Distribution',
+    phone: '0708091011',
+    email: 'commandes@ci-distribution.ci',
+    address: 'Zone industrielle Yopougon, Abidjan',
+    notes: 'Boissons et alimentation sèche — délai 48h',
+    active: true,
+    createdAt: Date.now() - 120 * 86_400_000,
+    updatedAt: Date.now() - 5 * 86_400_000,
+  },
+  {
+    id: 'sup-frais-local',
+    name: 'Frais du Jour SARL',
+    phone: '0102030405',
+    email: 'achats@fraisdujour.ci',
+    address: 'Marché de gros Adjamé',
+    notes: 'Produits frais — livraison matin',
+    active: true,
+    createdAt: Date.now() - 90 * 86_400_000,
+    updatedAt: Date.now() - 2 * 86_400_000,
+  },
+  {
+    id: 'sup-tech-plus',
+    name: 'Tech Plus Import',
+    phone: '0506070809',
+    email: 'sales@techplus.ci',
+    address: 'Plateau, Abidjan',
+    notes: 'High-tech et accessoires',
+    active: true,
+    createdAt: Date.now() - 60 * 86_400_000,
+    updatedAt: Date.now() - 10 * 86_400_000,
+  },
+]
 
 /** Catalogue de test — commerce / restauration CI. */
 export const SEED_PRODUCTS: Product[] = [

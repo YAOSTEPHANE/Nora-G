@@ -7,6 +7,8 @@ import type {
   InventorySession,
   InventorySessionStatus,
 } from '../db/types'
+import { appendAuditEvent } from '../lib/auditLog'
+import { formatFCFA } from '../lib/money'
 import { productIsActive } from '../lib/productFilters'
 import { storeStockRowId } from '../lib/storeStockId'
 import { enqueueStockSync } from '../lib/sync'
@@ -17,13 +19,16 @@ import { EmptyState } from '../ui/EmptyState'
 import { Field, Input } from '../ui/Input'
 import { Kpi } from '../ui/Kpi'
 import { PageHeader } from '../ui/PageHeader'
+import { Tabs } from '../ui/Tabs'
 import { useToast } from '../ui/Toast'
-import { IconCheckCircle } from '../ui/icons'
+import { IconCheckCircle, IconSearch } from '../ui/icons'
 
 type Props = {
   canManage: boolean
   actor: { id: string; displayName: string }
 }
+
+type LineFilter = 'all' | 'ecarts' | 'pending' | 'ok'
 
 function statusLabel(s: InventorySessionStatus): string {
   switch (s) {
@@ -45,6 +50,7 @@ function statusLabel(s: InventorySessionStatus): string {
 export function InventairePhysiqueView({ canManage, actor }: Props) {
   const toast = useToast()
   const { activeStoreId, activeStore } = useActiveStore()
+  const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
   const sessions =
     useLiveQuery(
       () =>
@@ -57,11 +63,24 @@ export function InventairePhysiqueView({ canManage, actor }: Props) {
     useLiveQuery(
       () =>
         activeSessionId
-          ? db.inventoryCountLines.where('sessionId').equals(activeSessionId).toArray()
+          ? db.inventoryCountLines
+              .where('sessionId')
+              .equals(activeSessionId)
+              .toArray()
           : Promise.resolve([] as InventoryCountLine[]),
       [activeSessionId],
       [],
     ) ?? []
+
+  const [lineFilter, setLineFilter] = useState<LineFilter>('all')
+  const [search, setSearch] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const priceByProduct = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const p of products) m.set(p.id, p.priceTTC)
+    return m
+  }, [products])
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null
   const sortedSessions = useMemo(
@@ -70,47 +89,93 @@ export function InventairePhysiqueView({ canManage, actor }: Props) {
   )
 
   const counted = lines.filter((l) => l.countedQty != null).length
-  const varianceSum = lines.reduce(
+  const ecartLines = lines.filter(
+    (l) => l.variance != null && l.variance !== 0,
+  )
+  const varianceAbsQty = ecartLines.reduce(
     (m, l) => m + Math.abs(l.variance ?? 0),
     0,
   )
+  const varianceValueTTC = ecartLines.reduce((m, l) => {
+    const price = priceByProduct.get(l.productId) ?? 0
+    return m + Math.abs(l.variance ?? 0) * price
+  }, 0)
+  const surplusValue = ecartLines.reduce((m, l) => {
+    if ((l.variance ?? 0) <= 0) return m
+    return m + (l.variance ?? 0) * (priceByProduct.get(l.productId) ?? 0)
+  }, 0)
+  const shortageValue = ecartLines.reduce((m, l) => {
+    if ((l.variance ?? 0) >= 0) return m
+    return m + Math.abs(l.variance ?? 0) * (priceByProduct.get(l.productId) ?? 0)
+  }, 0)
+
+  const visibleLines = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return [...lines]
+      .filter((l) => {
+        if (lineFilter === 'ecarts')
+          return l.variance != null && l.variance !== 0
+        if (lineFilter === 'pending') return l.countedQty == null
+        if (lineFilter === 'ok') return l.variance === 0
+        return true
+      })
+      .filter((l) => {
+        if (!q) return true
+        return l.productName.toLowerCase().includes(q)
+      })
+      .sort((a, b) => {
+        const va = Math.abs(a.variance ?? 0)
+        const vb = Math.abs(b.variance ?? 0)
+        if (lineFilter === 'ecarts' && va !== vb) return vb - va
+        return a.productName.localeCompare(b.productName, 'fr')
+      })
+  }, [lines, lineFilter, search])
 
   const startSession = async () => {
     if (!canManage) return
-    const products = (await db.products.toArray()).filter(productIsActive)
-    const stocks = await db.storeStocks.where('storeId').equals(activeStoreId).toArray()
-    const stockMap = new Map(stocks.map((r) => [r.productId, r.stock]))
-    const session: InventorySession = {
-      id: crypto.randomUUID(),
-      reference: `INV-${Date.now().toString(36).toUpperCase()}`,
-      storeId: activeStoreId,
-      storeName: activeStore?.name,
-      status: 'counting',
-      startedAt: Date.now(),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      createdByProfileId: actor.id,
-      createdByDisplayName: actor.displayName,
+    setBusy(true)
+    try {
+      const active = (await db.products.toArray()).filter(productIsActive)
+      const stocks = await db.storeStocks
+        .where('storeId')
+        .equals(activeStoreId)
+        .toArray()
+      const stockMap = new Map(stocks.map((r) => [r.productId, r.stock]))
+      const session: InventorySession = {
+        id: crypto.randomUUID(),
+        reference: `INV-${Date.now().toString(36).toUpperCase()}`,
+        storeId: activeStoreId,
+        storeName: activeStore?.name,
+        status: 'counting',
+        startedAt: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdByProfileId: actor.id,
+        createdByDisplayName: actor.displayName,
+      }
+      await db.inventorySessions.add(session)
+      const countLines: InventoryCountLine[] = active.map((p) => ({
+        id: crypto.randomUUID(),
+        sessionId: session.id,
+        productId: p.id,
+        productName: p.name,
+        expectedQty: stockMap.get(p.id) ?? 0,
+        countedQty: null,
+        variance: null,
+        updatedAt: Date.now(),
+      }))
+      await db.inventoryCountLines.bulkAdd(countLines)
+      setActiveSessionId(session.id)
+      setLineFilter('all')
+      toast.success('Comptage démarré', `${countLines.length} articles`)
+    } finally {
+      setBusy(false)
     }
-    await db.inventorySessions.add(session)
-    const countLines: InventoryCountLine[] = products.map((p) => ({
-      id: crypto.randomUUID(),
-      sessionId: session.id,
-      productId: p.id,
-      productName: p.name,
-      expectedQty: stockMap.get(p.id) ?? 0,
-      countedQty: null,
-      variance: null,
-      updatedAt: Date.now(),
-    }))
-    await db.inventoryCountLines.bulkAdd(countLines)
-    setActiveSessionId(session.id)
-    toast.success('Comptage démarré', `${countLines.length} articles`)
   }
 
   const setCounted = async (line: InventoryCountLine, raw: string) => {
     if (!canManage || activeSession?.status !== 'counting') return
-    const countedQty = raw.trim() === '' ? null : Number(raw)
+    const countedQty = raw.trim() === '' ? null : Number(raw.replace(',', '.'))
     if (countedQty != null && (!Number.isFinite(countedQty) || countedQty < 0)) {
       toast.error('Quantité invalide')
       return
@@ -125,39 +190,74 @@ export function InventairePhysiqueView({ canManage, actor }: Props) {
   }
 
   const closeSession = async (applyStock: boolean) => {
-    if (!canManage || !activeSession || activeSession.status !== 'counting') return
-    const currentLines = await db.inventoryCountLines
-      .where('sessionId')
-      .equals(activeSession.id)
-      .toArray()
-    if (applyStock) {
-      for (const line of currentLines) {
-        if (line.countedQty == null) continue
-        const product = await db.products.get(line.productId)
-        const rid = storeStockRowId(activeStoreId, line.productId)
-        await db.storeStocks.put({
-          id: rid,
-          storeId: activeStoreId,
-          productId: line.productId,
-          stock: line.countedQty,
-        })
-        await enqueueStockSync({
-          productId: line.productId,
-          stock: line.countedQty,
-          lowStockThreshold: product?.lowStockThreshold ?? 5,
-          storeId: activeStoreId,
-        })
+    if (!canManage || !activeSession || activeSession.status !== 'counting')
+      return
+    setBusy(true)
+    try {
+      const currentLines = await db.inventoryCountLines
+        .where('sessionId')
+        .equals(activeSession.id)
+        .toArray()
+      const withVariance = currentLines.filter(
+        (l) => l.variance != null && l.variance !== 0,
+      )
+      if (applyStock) {
+        for (const line of currentLines) {
+          if (line.countedQty == null) continue
+          const product = await db.products.get(line.productId)
+          const rid = storeStockRowId(activeStoreId, line.productId)
+          await db.storeStocks.put({
+            id: rid,
+            storeId: activeStoreId,
+            productId: line.productId,
+            stock: line.countedQty,
+          })
+          await enqueueStockSync({
+            productId: line.productId,
+            stock: line.countedQty,
+            lowStockThreshold: product?.lowStockThreshold ?? 5,
+            storeId: activeStoreId,
+          })
+        }
       }
+      await db.inventorySessions.update(activeSession.id, {
+        status: 'closed',
+        closedAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+      await appendAuditEvent({
+        kind: 'stock_adjusted',
+        actor: {
+          profileId: actor.id,
+          displayName: actor.displayName,
+        },
+        reason: applyStock
+          ? `Inventaire ${activeSession.reference} clôturé — stocks ajustés`
+          : `Inventaire ${activeSession.reference} clôturé — sans ajustement`,
+        payload: {
+          storeId: activeStoreId,
+          sessionId: activeSession.id,
+          reference: activeSession.reference,
+          applyStock,
+          linesCounted: currentLines.filter((l) => l.countedQty != null)
+            .length,
+          varianceLines: withVariance.length,
+          varianceAbsQty: withVariance.reduce(
+            (s, l) => s + Math.abs(l.variance ?? 0),
+            0,
+          ),
+          source: 'inventory_count',
+        },
+      })
+      toast.success(
+        'Comptage clôturé',
+        applyStock
+          ? `${withVariance.length} écart(s) appliqué(s)`
+          : 'Sans ajustement stock',
+      )
+    } finally {
+      setBusy(false)
     }
-    await db.inventorySessions.update(activeSession.id, {
-      status: 'closed',
-      closedAt: Date.now(),
-      updatedAt: Date.now(),
-    })
-    toast.success(
-      'Comptage clôturé',
-      applyStock ? 'Stocks mis à jour' : 'Sans ajustement stock',
-    )
   }
 
   return (
@@ -165,10 +265,14 @@ export function InventairePhysiqueView({ canManage, actor }: Props) {
       <PageHeader
         icon={<IconCheckCircle />}
         title="Comptage physique"
-        subtitle="Sessions d’inventaire : théorique vs physique"
+        subtitle="Inventaire théorique vs physique — écarts et ajustements"
         actions={
           canManage ? (
-            <Button variant="accent" onClick={() => void startSession()}>
+            <Button
+              variant="accent"
+              loading={busy}
+              onClick={() => void startSession()}
+            >
               Nouveau comptage
             </Button>
           ) : null
@@ -210,64 +314,160 @@ export function InventairePhysiqueView({ canManage, actor }: Props) {
           {!activeSession ? (
             <EmptyState
               title="Sélectionnez une session"
-              description="Ou démarrez un nouveau comptage."
+              description="Ou démarrez un nouveau comptage pour comparer stock théorique et physique."
             />
           ) : (
             <>
-              <div className="grid gap-2 sm:grid-cols-3">
-                <Kpi label="Lignes" value={String(lines.length)} />
-                <Kpi label="Comptées" value={String(counted)} tone="accent" />
-                <Kpi label="Écarts abs." value={String(varianceSum)} tone="amber" />
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <Kpi
+                  label="Comptées"
+                  value={`${counted}/${lines.length}`}
+                  tone="accent"
+                />
+                <Kpi
+                  label="Lignes écart"
+                  value={String(ecartLines.length)}
+                  tone="amber"
+                />
+                <Kpi
+                  label="Écarts (qté)"
+                  value={String(varianceAbsQty)}
+                  tone="rose"
+                />
+                <Kpi
+                  label="Valeur écarts"
+                  value={formatFCFA(Math.round(varianceValueTTC))}
+                  hint={`+${formatFCFA(Math.round(surplusValue))} / −${formatFCFA(Math.round(shortageValue))}`}
+                  tone="violet"
+                />
               </div>
+
               {canManage && activeSession.status === 'counting' ? (
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="accent" onClick={() => void closeSession(true)}>
+                  <Button
+                    variant="accent"
+                    loading={busy}
+                    onClick={() => void closeSession(true)}
+                  >
                     Clôturer et ajuster le stock
                   </Button>
-                  <Button variant="secondary" onClick={() => void closeSession(false)}>
+                  <Button
+                    variant="secondary"
+                    loading={busy}
+                    onClick={() => void closeSession(false)}
+                  >
                     Clôturer sans ajuster
                   </Button>
                 </div>
               ) : null}
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Tabs
+                  variant="segmented"
+                  active={lineFilter}
+                  onChange={setLineFilter}
+                  items={[
+                    { id: 'all', label: 'Tous', count: lines.length },
+                    {
+                      id: 'ecarts',
+                      label: 'Écarts',
+                      count: ecartLines.length || undefined,
+                    },
+                    {
+                      id: 'pending',
+                      label: 'À compter',
+                      count: lines.length - counted || undefined,
+                    },
+                    { id: 'ok', label: 'Conformes' },
+                  ]}
+                />
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Rechercher un article…"
+                  iconLeft={<IconSearch />}
+                  className="sm:max-w-xs"
+                />
+              </div>
+
               <ul className="max-h-[55vh] space-y-1 overflow-auto">
-                {lines.map((line) => (
-                  <li
-                    key={line.id}
-                    className="grid grid-cols-[1fr_80px_100px_80px] items-center gap-2 rounded-lg border border-border/60 bg-white px-2 py-1.5 text-[12px]"
-                  >
-                    <span className="truncate font-medium">{line.productName}</span>
-                    <span className="font-mono-nums text-ink-muted">
-                      th. {line.expectedQty}
-                    </span>
-                    <Field label="">
-                      <Input
-                        inputMode="decimal"
-                        disabled={!canManage || activeSession.status !== 'counting'}
-                        defaultValue={
-                          line.countedQty == null ? '' : String(line.countedQty)
-                        }
-                        onBlur={(e) => void setCounted(line, e.target.value)}
-                        className="h-8 font-mono-nums"
-                      />
-                    </Field>
-                    <span
-                      className={
-                        line.variance == null
-                          ? 'text-ink-muted'
-                          : line.variance === 0
-                            ? 'text-emerald-700'
-                            : 'text-rose-700'
-                      }
-                    >
-                      {line.variance == null
-                        ? '—'
-                        : line.variance > 0
-                          ? `+${line.variance}`
-                          : String(line.variance)}
-                    </span>
-                  </li>
-                ))}
+                {visibleLines.length === 0 ? (
+                  <EmptyState
+                    title="Aucune ligne"
+                    description="Changez le filtre ou la recherche."
+                    variant="flat"
+                  />
+                ) : (
+                  visibleLines.map((line) => {
+                    const price = priceByProduct.get(line.productId) ?? 0
+                    const valueEcart =
+                      line.variance == null
+                        ? null
+                        : Math.round(line.variance * price)
+                    return (
+                      <li
+                        key={line.id}
+                        className="grid grid-cols-[1fr_70px_90px_70px_90px] items-center gap-2 rounded-lg border border-border/60 bg-white px-2 py-1.5 text-[12px]"
+                      >
+                        <span className="truncate font-medium">
+                          {line.productName}
+                        </span>
+                        <span className="font-mono-nums text-ink-muted">
+                          th. {line.expectedQty}
+                        </span>
+                        <Field label="">
+                          <Input
+                            inputMode="decimal"
+                            disabled={
+                              !canManage ||
+                              activeSession.status !== 'counting'
+                            }
+                            defaultValue={
+                              line.countedQty == null
+                                ? ''
+                                : String(line.countedQty)
+                            }
+                            key={`${line.id}-${line.updatedAt}`}
+                            onBlur={(e) =>
+                              void setCounted(line, e.target.value)
+                            }
+                            className="h-8 font-mono-nums"
+                          />
+                        </Field>
+                        <span
+                          className={
+                            line.variance == null
+                              ? 'font-mono-nums text-ink-muted'
+                              : line.variance === 0
+                                ? 'font-mono-nums text-emerald-700'
+                                : 'font-mono-nums font-semibold text-rose-700'
+                          }
+                        >
+                          {line.variance == null
+                            ? '—'
+                            : line.variance > 0
+                              ? `+${line.variance}`
+                              : String(line.variance)}
+                        </span>
+                        <span className="truncate font-mono-nums text-[11px] text-ink-muted">
+                          {valueEcart == null
+                            ? '—'
+                            : valueEcart === 0
+                              ? '0'
+                              : valueEcart > 0
+                                ? `+${formatFCFA(valueEcart)}`
+                                : formatFCFA(valueEcart)}
+                        </span>
+                      </li>
+                    )
+                  })
+                )}
               </ul>
+              <p className="text-[10px] text-ink-muted">
+                Colonnes : article · théorique · compté · écart qté · écart
+                valeur (FCFA)
+              </p>
             </>
           )}
         </div>

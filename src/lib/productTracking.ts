@@ -6,6 +6,10 @@ import type {
   ProductSerialUnit,
 } from '../db/types'
 import { storeStockRowId } from './storeStockId'
+import {
+  deductVariantStockForSale,
+  restoreVariantStockForRefund,
+} from './variantStock'
 
 export function productLotRowId(
   storeId: string,
@@ -141,6 +145,7 @@ export type CheckoutLineMeta = {
   productId: string
   lotAllocations?: LotAllocation[]
   serialUnitIds?: string[]
+  variantId?: string
 }
 
 /** Déduit lots ou séries ; retourne false si le stock classique doit être déduit. */
@@ -200,6 +205,17 @@ export async function deductTrackedStockForLine(params: {
     return 'tracked'
   }
 
+  if (product.hasVariants) {
+    await deductVariantStockForSale({
+      storeId: params.storeId,
+      productId: params.line.productId,
+      productName: params.line.name,
+      qty: params.line.qty,
+      variantId: params.meta?.variantId,
+    })
+    return 'tracked'
+  }
+
   return 'classic'
 }
 
@@ -211,6 +227,7 @@ export async function restoreTrackedStockForRefund(params: {
   saleLine?: {
     lotAllocations?: LotAllocation[]
     serialNumbers?: string[]
+    variantId?: string
   }
 }): Promise<void> {
   const product = await db.products.get(params.productId)
@@ -243,5 +260,15 @@ export async function restoreTrackedStockForRefund(params: {
       }
     }
     await syncStoreStockFromTracking(params.storeId, params.productId)
+    return
+  }
+
+  if (product.hasVariants) {
+    await restoreVariantStockForRefund({
+      storeId: params.storeId,
+      productId: params.productId,
+      qty: params.qty,
+      variantId: params.saleLine?.variantId,
+    })
   }
 }

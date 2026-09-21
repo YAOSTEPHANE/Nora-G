@@ -4,6 +4,7 @@ import { useActiveStore } from '../context/ActiveStoreContext'
 import { db } from '../db/db'
 import type { CustomerReturn, CustomerReturnStatus } from '../db/types'
 import { formatFCFA } from '../lib/money'
+import { appendAuditEvent } from '../lib/auditLog'
 import { productIsActive } from '../lib/productFilters'
 import { storeStockRowId } from '../lib/storeStockId'
 import { enqueueStockSync } from '../lib/sync'
@@ -149,6 +150,22 @@ export function RetoursClientView({ canManage, actor }: Props) {
       createdByDisplayName: actor.displayName,
     }
     await db.customerReturns.add(row)
+    void appendAuditEvent({
+      kind: 'customer_return',
+      actor: { profileId: actor.id, displayName: actor.displayName },
+      reason: reason || `Retour client ${row.reference}`,
+      payload: {
+        returnId: row.id,
+        reference: row.reference,
+        storeId: activeStoreId,
+        customerName: row.customerName,
+        productId: row.productId,
+        productName: row.productName,
+        qty: row.qty,
+        amountTTC: row.amountTTC,
+        status: row.status,
+      },
+    })
     setCustomerName('')
     setPhone('')
     setProductId('')

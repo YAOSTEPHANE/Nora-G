@@ -321,6 +321,11 @@ export function CatalogueView({
     })
     const stockChanged = previousQty !== stockAtStore
     const thresholdChanged = previousThreshold !== p.lowStockThreshold
+    const previousPrice = prevRow?.priceTTC ?? p.priceTTC
+    const previousPurchase = prevRow?.purchasePriceTTC
+    const priceChanged = previousPrice !== p.priceTTC
+    const purchaseChanged =
+      (previousPurchase ?? null) !== (p.purchasePriceTTC ?? null)
     if (stockChanged || thresholdChanged) {
       void appendAuditEvent({
         kind: 'stock_adjusted',
@@ -339,6 +344,25 @@ export function CatalogueView({
           newQty: stockAtStore,
           previousLowStockThreshold: previousThreshold,
           newLowStockThreshold: p.lowStockThreshold,
+        },
+      })
+    }
+    if (priceChanged || purchaseChanged) {
+      void appendAuditEvent({
+        kind: 'price_changed',
+        actor: auditActor,
+        reason: priceChanged
+          ? `Prix TTC « ${p.name} » ${previousPrice} → ${p.priceTTC}`
+          : `Prix de revient « ${p.name} » ${previousPurchase ?? '—'} → ${p.purchasePriceTTC ?? '—'}`,
+        payload: {
+          source: 'catalogue_edit',
+          productId: p.id,
+          productName: p.name,
+          barcode: p.barcode,
+          previousPriceTTC: previousPrice,
+          newPriceTTC: p.priceTTC,
+          previousPurchasePriceTTC: previousPurchase ?? null,
+          newPurchasePriceTTC: p.purchasePriceTTC ?? null,
         },
       })
     }

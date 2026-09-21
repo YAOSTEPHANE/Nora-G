@@ -54,6 +54,11 @@ export interface Store {
   sortOrder: number
   /** Masqué du sélecteur ; stocks et ventes historiques conservés. */
   archived?: boolean
+  /**
+   * `warehouse` = entrepôt central (réassort).
+   * Défaut / absent = boutique de vente.
+   */
+  kind?: 'store' | 'warehouse'
 }
 
 export interface StoreStock {
@@ -260,6 +265,137 @@ export interface CrmInteraction {
   actorDisplayName?: string
 }
 
+/** Campagne WhatsApp ciblée (relance, invitation, réactivation…). */
+export type WhatsAppCampaignKind =
+  | 'promo'
+  | 'relance'
+  | 'invitation'
+  | 'reactivation'
+  | 'custom'
+
+export type WhatsAppCampaignStatus =
+  | 'draft'
+  | 'ready'
+  | 'completed'
+  | 'cancelled'
+
+export type WhatsAppMessageStatus =
+  | 'pending'
+  | 'sent'
+  | 'failed'
+  | 'skipped'
+
+export interface WhatsAppCampaign {
+  id: string
+  storeId: string
+  storeName?: string
+  name: string
+  kind: WhatsAppCampaignKind
+  status: WhatsAppCampaignStatus
+  messageTemplate: string
+  /**
+   * Ciblage : all | vip | inactive | product | store | spend | frequency | manual
+   */
+  audience:
+    | 'all'
+    | 'vip'
+    | 'inactive'
+    | 'product'
+    | 'store'
+    | 'spend'
+    | 'frequency'
+    | 'manual'
+  inactiveDays?: number
+  productId?: string
+  minSpendTTC?: number
+  minFrequency?: number
+  /** IDs clientes si audience = manual */
+  manualCustomerIds?: string[]
+  /** Code promo lié pour mesurer le CA généré. */
+  promoCode?: string
+  /** Fenêtre d’attribution (jours) après envoi / démarrage. */
+  attributionWindowDays?: number
+  createdAt: number
+  updatedAt: number
+  completedAt?: number
+  createdByProfileId?: string
+  createdByDisplayName?: string
+  targetedCount: number
+  sentCount: number
+  failedCount: number
+  openedCount: number
+}
+
+export type MarketingCampaignStatus =
+  | 'draft'
+  | 'active'
+  | 'ended'
+  | 'cancelled'
+
+export type MarketingCampaignAudience =
+  | 'all'
+  | 'vip'
+  | 'inactive'
+  | 'product'
+  | 'store'
+  | 'spend'
+  | 'frequency'
+  | 'manual'
+
+/**
+ * Campagne marketing / fidélisation : segment + promo + mesure du CA.
+ */
+export interface MarketingCampaign {
+  id: string
+  storeId: string
+  storeName?: string
+  name: string
+  status: MarketingCampaignStatus
+  description?: string
+  audience: MarketingCampaignAudience
+  inactiveDays?: number
+  productId?: string
+  minSpendTTC?: number
+  minFrequency?: number
+  manualCustomerIds?: string[]
+  /** Code promo de suivi (recommandé pour mesurer le CA). */
+  promoCode?: string
+  promotionId?: string
+  /** Remise % si création auto du code promo. */
+  discountPct?: number
+  attributionWindowDays: number
+  /** Campagne WhatsApp liée (optionnel). */
+  whatsappCampaignId?: string
+  targetedCount: number
+  startedAt?: number
+  endedAt?: number
+  createdAt: number
+  updatedAt: number
+  createdByProfileId?: string
+  createdByDisplayName?: string
+  /** Dernières métriques calculées (cache). */
+  attributedCaTTC?: number
+  attributedSalesCount?: number
+  attributedCustomersCount?: number
+  promoCaTTC?: number
+  audienceCaTTC?: number
+  lastMetricsAt?: number
+}
+
+export interface WhatsAppCampaignMessage {
+  id: string
+  campaignId: string
+  customerId: string
+  customerName: string
+  customerPhone: string
+  body: string
+  status: WhatsAppMessageStatus
+  createdAt: number
+  sentAt?: number
+  openedAt?: number
+  error?: string
+}
+
 export type TicketInvoiceKind = 'ticket' | 'facture'
 
 export type TicketInvoiceStatus = 'draft' | 'issued' | 'paid' | 'cancelled'
@@ -311,8 +447,13 @@ export interface StockTransfer {
   fromStoreId: string
   toStoreId: string
   productId: string
+  /** Libellé figé au moment du transfert. */
+  productName?: string
   qty: number
   note?: string
+  reference?: string
+  /** completed = stock déjà déplacé (flux immédiat caisse). */
+  status?: 'completed' | 'cancelled'
   createdByProfileId?: string
 }
 
@@ -396,6 +537,33 @@ export interface Product {
   brand?: string
   /** Référence fournisseur / catalogue. */
   supplierRef?: string
+  /** Si true, le stock magasin est la somme des variantes. */
+  hasVariants?: boolean
+}
+
+/** Variante produit (taille, couleur, conditionnement…). */
+export interface ProductVariant {
+  id: string
+  productId: string
+  /** Ex. « M / Rouge », « 50 cl », « Pack 6 ». */
+  label: string
+  sku?: string
+  barcode?: string
+  /** Surcoût ou prix dédié ; sinon prix produit. */
+  priceTTC?: number
+  active: boolean
+  sortOrder: number
+  createdAt: number
+  updatedAt: number
+}
+
+/** Stock d’une variante sur un magasin. */
+export interface VariantStoreStock {
+  id: string
+  storeId: string
+  productId: string
+  variantId: string
+  stock: number
 }
 
 /** Lot pharmacie — traçabilité péremption (FEFO à la caisse). */
@@ -462,7 +630,7 @@ export interface LotAllocation {
 
 export type PaymentMethod = 'cash' | 'card' | 'mobile' | 'credit' | 'mixed'
 
-export type MobileMoneyOperator = 'orange' | 'mtn' | 'wave'
+export type MobileMoneyOperator = 'orange' | 'mtn' | 'wave' | 'moov'
 
 /** Ventilation TTC d’une vente (simple ou mixte). */
 export interface SalePaymentSplit {
@@ -470,6 +638,8 @@ export interface SalePaymentSplit {
   card: number
   mobile: number
   mobileOperator?: MobileMoneyOperator
+  /** Numéro client mobile money (E.164 +225…). */
+  mobilePhone?: string
 }
 
 export interface CartLine {
@@ -481,6 +651,9 @@ export interface CartLine {
   lotAllocations?: LotAllocation[]
   serialUnitIds?: string[]
   serialNumbers?: string[]
+  /** Variante vendue (taille / couleur…) si le produit en a. */
+  variantId?: string
+  variantLabel?: string
 }
 
 export interface SaleLine {
@@ -493,6 +666,8 @@ export interface SaleLine {
   lotAllocations?: LotAllocation[]
   serialNumbers?: string[]
   imeiNumbers?: string[]
+  variantId?: string
+  variantLabel?: string
 }
 
 export type OnlineOrderStatus = 'pending' | 'approved' | 'rejected'
@@ -649,7 +824,10 @@ export interface RefundRecord {
 export type AuditEventKind =
   | 'cart_cancelled'
   | 'sale_refund'
+  | 'sale_void'
+  | 'sale_exchange'
   | 'promo_applied'
+  | 'discount_override'
   | 'stock_adjusted'
   | 'stock_transfer'
   | 'product_deleted'
@@ -657,6 +835,9 @@ export type AuditEventKind =
   | 'ticket_invoice_updated'
   | 'day_closure'
   | 'day_reopen'
+  | 'price_changed'
+  | 'customer_return'
+  | 'shrinkage'
 
 export interface AuditEvent {
   id: string
@@ -759,10 +940,37 @@ export interface PurchaseOrder {
   status: PurchaseOrderStatus
   lines: PurchaseOrderLine[]
   notes?: string
+  /** Frais de transport / livraison TTC. */
+  shippingCostTTC?: number
+  /** Autres frais d’approvisionnement (dédouanement, manutention…). */
+  otherCostTTC?: number
   orderedAt?: number
   receivedAt?: number
   createdAt: number
   updatedAt: number
+  createdByProfileId?: string
+  createdByDisplayName?: string
+}
+
+/**
+ * Historique des prix d’achat (réception, saisie manuelle, commande).
+ * Sert au suivi des coûts d’approvisionnement et à la marge.
+ */
+export interface PurchasePriceHistoryEntry {
+  id: string
+  productId: string
+  productName: string
+  supplierId?: string
+  supplierName?: string
+  purchaseOrderId?: string
+  purchaseOrderRef?: string
+  storeId?: string
+  unitCostTTC: number
+  previousUnitCostTTC?: number
+  qty?: number
+  source: 'reception' | 'manual' | 'order'
+  note?: string
+  createdAt: number
   createdByProfileId?: string
   createdByDisplayName?: string
 }
@@ -1289,6 +1497,8 @@ export interface StaffCommission {
   id: string
   storeId: string
   staffName: string
+  /** Lien profil équipe (si commission rattachée à une vendeuse). */
+  staffProfileId?: string
   saleLabel: string
   amountTTC: number
   ratePct: number
@@ -1296,6 +1506,27 @@ export interface StaffCommission {
   status: 'accrued' | 'paid'
   createdAt: number
   paidAt?: number
+  createdByProfileId?: string
+  createdByDisplayName?: string
+}
+
+/** Objectif de CA / volume pour une vendeuse sur une période. */
+export interface SalespersonGoal {
+  id: string
+  staffProfileId: string
+  staffDisplayName: string
+  storeId?: string
+  storeName?: string
+  periodKind: 'week' | 'month' | 'custom'
+  periodStartYmd: string
+  periodEndYmd: string
+  targetCaTTC: number
+  targetSalesCount?: number
+  /** Taux de commission suggéré sur le CA net (%). */
+  commissionRatePct?: number
+  notes?: string
+  createdAt: number
+  updatedAt: number
   createdByProfileId?: string
   createdByDisplayName?: string
 }

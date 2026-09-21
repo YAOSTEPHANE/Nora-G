@@ -38,6 +38,8 @@ export async function applySaleRefund(params: {
   lineQty: LineRefundQtyMap
   reason: string
   actor: RefundActor
+  /** Si true, n’écrit pas l’audit (void / échange gèrent leur propre événement). */
+  skipAudit?: boolean
 }): Promise<{ amountTTC: number }> {
   const reason = params.reason.trim()
   if (reason.length < 3) {
@@ -51,9 +53,12 @@ export async function applySaleRefund(params: {
       db.storeStocks,
       db.productLots,
       db.productSerialUnits,
+      db.productVariants,
+      db.variantStoreStocks,
       db.products,
       db.refunds,
       db.auditEvents,
+      db.syncQueue,
     ],
     async () => {
       const sale = await db.sales.get(params.saleId)
@@ -124,24 +129,108 @@ export async function applySaleRefund(params: {
         refundedLineQty: prevLine,
       })
 
-      await appendAuditEvent({
-        kind: 'sale_refund',
-        actor: {
-          profileId: params.actor.profileId,
-          displayName: params.actor.displayName,
-        },
-        reason,
-        relatedSaleId: sale.id,
-        payload: {
-          refundId,
-          amountTTC: computed.amountTTC,
-          lineAdjustments: computed.adjustments,
-          saleTotalTTC: sale.totalTTC,
-          newRefundsTotalTTC: newRefundTotal,
-        },
-      })
+      if (!params.skipAudit) {
+        await appendAuditEvent({
+          kind: 'sale_refund',
+          actor: {
+            profileId: params.actor.profileId,
+            displayName: params.actor.displayName,
+          },
+          reason,
+          relatedSaleId: sale.id,
+          payload: {
+            refundId,
+            amountTTC: computed.amountTTC,
+            lineAdjustments: computed.adjustments,
+            saleTotalTTC: sale.totalTTC,
+            newRefundsTotalTTC: newRefundTotal,
+          },
+        })
+      }
 
       return { amountTTC: computed.amountTTC }
     },
   )
+}
+
+/**
+ * Annulation (void) d’une vente récente : remboursement intégral + audit `sale_void`.
+ */
+export async function applySaleVoid(params: {
+  saleId: string
+  reason: string
+  actor: RefundActor
+  authorizedBy?: { profileId: string; displayName: string }
+}): Promise<{ amountTTC: number }> {
+  const sale = await db.sales.get(params.saleId)
+  if (!sale) throw new Error('Vente introuvable.')
+
+  const lineQty: LineRefundQtyMap = {}
+  for (const line of sale.lines) {
+    const max = Math.max(0, line.qty - (sale.refundedLineQty?.[line.productId] ?? 0))
+    if (max > 0) lineQty[line.productId] = max
+  }
+
+  const result = await applySaleRefund({
+    saleId: params.saleId,
+    lineQty,
+    reason: params.reason.trim() || 'Annulation vente',
+    actor: params.actor,
+    skipAudit: true,
+  })
+
+  await appendAuditEvent({
+    kind: 'sale_void',
+    actor: {
+      profileId: params.actor.profileId,
+      displayName: params.actor.displayName,
+    },
+    reason: params.reason.trim() || 'Annulation vente',
+    relatedSaleId: params.saleId,
+    payload: {
+      amountTTC: result.amountTTC,
+      authorizedByProfileId: params.authorizedBy?.profileId,
+      authorizedByDisplayName: params.authorizedBy?.displayName,
+      saleTotalTTC: sale.totalTTC,
+    },
+  })
+
+  return result
+}
+
+/**
+ * Échange : restitue les articles retournés (comme un remboursement)
+ * et journalise `sale_exchange`. Les articles de contrepartie sont
+ * ensuite chargés au panier caisse par l’appelant.
+ */
+export async function applySaleExchangeReturn(params: {
+  saleId: string
+  lineQty: LineRefundQtyMap
+  reason: string
+  actor: RefundActor
+  exchangeProductIds: string[]
+}): Promise<{ amountTTC: number }> {
+  const result = await applySaleRefund({
+    saleId: params.saleId,
+    lineQty: params.lineQty,
+    reason: params.reason.trim() || 'Échange',
+    actor: params.actor,
+    skipAudit: true,
+  })
+
+  await appendAuditEvent({
+    kind: 'sale_exchange',
+    actor: {
+      profileId: params.actor.profileId,
+      displayName: params.actor.displayName,
+    },
+    reason: params.reason.trim() || 'Échange',
+    relatedSaleId: params.saleId,
+    payload: {
+      returnedAmountTTC: result.amountTTC,
+      exchangeProductIds: params.exchangeProductIds,
+    },
+  })
+
+  return result
 }

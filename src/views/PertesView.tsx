@@ -4,6 +4,7 @@ import { useActiveStore } from '../context/ActiveStoreContext'
 import { db } from '../db/db'
 import type { ShrinkageEvent, ShrinkageKind } from '../db/types'
 import { formatFCFA } from '../lib/money'
+import { appendAuditEvent } from '../lib/auditLog'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { FormGrid, FormPanel } from '../ui/Form'
@@ -71,6 +72,20 @@ export function PertesView({ canManage, actor }: Props) {
       createdByDisplayName: actor.displayName,
     }
     await db.shrinkageEvents.add(row)
+    void appendAuditEvent({
+      kind: 'shrinkage',
+      actor: { profileId: actor.id, displayName: actor.displayName },
+      reason: `${KIND_LABEL[kind]} — ${row.productName}`,
+      payload: {
+        shrinkageId: row.id,
+        storeId: activeStoreId,
+        kind,
+        productName: row.productName,
+        qty: row.qty,
+        amountTTC: row.amountTTC,
+        notes: row.notes,
+      },
+    })
     setProductName('')
     setAmount('')
     setNotes('')
