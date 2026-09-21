@@ -1,5 +1,3 @@
-import type { Request } from 'express'
-
 /** URL publique de l’app (retours paiement boutique, liens absolus). */
 export function publicAppUrl(req?: {
   get: (name: string) => string | undefined

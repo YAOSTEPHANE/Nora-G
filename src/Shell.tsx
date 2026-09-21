@@ -393,7 +393,7 @@ export function Shell({ staff, online, onLogout }: Props) {
   const [blockSaleWhenOutOfStock, setBlockSaleWhenOutOfStock] = useState(
     () => getAppSettings().blockSaleWhenOutOfStock,
   )
-  const [autoPrintReceiptAfterSale, setAutoPrintReceiptAfterSale] = useState(
+  const [, setAutoPrintReceiptAfterSale] = useState(
     () => getAppSettings().autoPrintReceiptAfterSale,
   )
   const [cart, setCart] = useState<CartLine[]>([])
@@ -426,8 +426,8 @@ export function Shell({ staff, online, onLogout }: Props) {
   const [syncBusy, setSyncBusy] = useState(false)
   const [pendingLeaveCartUntil, setPendingLeaveCartUntil] = useState(0)
   const [pendingCancelCartUntil, setPendingCancelCartUntil] = useState(0)
-  const [pendingCashDrawerBypassUntil, setPendingCashDrawerBypassUntil] = useState(0)
-  const [pendingCheckoutUntil, setPendingCheckoutUntil] = useState(0)
+  const [, setPendingCashDrawerBypassUntil] = useState(0)
+  const [, setPendingCheckoutUntil] = useState(0)
   const [deviceConnectivity, setDeviceConnectivity] = useState(() =>
     getDeviceConnectivityDemo(),
   )

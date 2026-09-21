@@ -3,14 +3,10 @@ import {
   checkCinetpayPayment,
   cinetpayConfigured,
   cinetpayDemoMode,
-  generateTransactionId,
-  initCinetpayPayment,
   mobileMoneyEnabled,
   parseNotifyStatus,
 } from '../lib/cinetpay.js'
 import {
-  checkWaveCheckoutByReference,
-  initWaveCheckout,
   parseWaveWebhookEvent,
   verifyWaveWebhookSignature,
   waveApiKeyConfigured,
@@ -20,8 +16,6 @@ import {
 import {
   MOBILE_MONEY_CHANNELS_CI,
   channelById,
-  normalizeCiPhone,
-  type MobileMoneyChannelId,
 } from '../lib/mobileMoneyChannels.js'
 import { prisma } from '../lib/prisma.js'
 import {
@@ -42,7 +36,6 @@ import {
   subscriptionCancelUrl,
   subscriptionSuccessUrl,
 } from '../lib/appUrls.js'
-import { resolveOrgFromRequest } from '../lib/orgAuth.js'
 import {
   renderWaveCheckoutPage,
   waveOpenPath,
@@ -102,10 +95,6 @@ async function markPaymentAccepted(paymentId: string, extra?: {
       },
     })
   })
-}
-
-function isWaveDirectChannel(channelId: string): boolean {
-  return channelId === 'wave' && waveEnabled()
 }
 
 type WaveCheckoutContext = {

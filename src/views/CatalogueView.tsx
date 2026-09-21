@@ -109,7 +109,7 @@ function sortProducts(list: ProductWithStock[], sortKey: SortKey): ProductWithSt
 export function CatalogueView({
   canManageCatalog,
   canEditPrices,
-  density,
+  density: _density,
   auditActor,
   onSaveNewProduct,
 }: Props) {

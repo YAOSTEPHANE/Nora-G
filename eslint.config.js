@@ -28,6 +28,16 @@ export default defineConfig([
     rules: {
       // Temporary: React Compiler lint noise / setState-in-effect until refactors land.
       'react-hooks/set-state-in-effect': 'off',
+      // Date.now()/Math.random() dans handlers async encore signalés comme « render ».
+      'react-hooks/purity': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   },
   {

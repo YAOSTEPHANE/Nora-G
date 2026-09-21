@@ -13,7 +13,7 @@ import {
 } from '../lib/productTracking'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
-import { Field, Input, Select, Textarea } from '../ui/Input'
+import { Field, Input, Textarea } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 import { cn } from '../ui/cn'
 
