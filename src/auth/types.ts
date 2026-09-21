@@ -1,5 +1,10 @@
-/** Rôles : administrateur, gérant (magasin), caissier, cuisinier. */
-export type UserRole = 'admin' | 'gerant' | 'caissier' | 'cuisinier'
+import type { BusinessDomain } from '../lib/businessDomain'
+
+/** Rôles système (compat API cloud + navigation). */
+export type BuiltinUserRole = 'admin' | 'gerant' | 'caissier' | 'cuisinier'
+
+/** Alias historique — toujours un rôle système pour la nav / le cloud. */
+export type UserRole = BuiltinUserRole
 
 /** Droits granulaires (fusionnés rôle + overrides profil). */
 export interface StaffPermissions {
@@ -25,11 +30,29 @@ export interface StaffPermissions {
   canConfigureAppSettings: boolean
 }
 
+/** Rôle métier créé par l’admin, rattaché à une activité. */
+export interface CustomRole {
+  id: string
+  label: string
+  /** Activité / domaine métier auquel ce rôle appartient. */
+  domain: BusinessDomain
+  /**
+   * Rôle système de base : navigation + droits par défaut
+   * (les permissions ci-dessous peuvent les affiner).
+   */
+  baseRole: BuiltinUserRole
+  permissions: StaffPermissions
+  createdAt: number
+  updatedAt: number
+}
+
 export interface StaffProfile {
   id: string
   displayName: string
   initials: string
-  role: UserRole
+  role: BuiltinUserRole
+  /** Rôle métier personnalisé (si défini, label + permissions issus de CustomRole). */
+  customRoleId?: string
   /** Magasin assigné (optionnel). */
   storeId?: string
   /** PIN court (caisse). */
@@ -49,4 +72,20 @@ export interface StaffSession {
   loggedAt: number
   /** Comment la session a été ouverte (audit léger). */
   authMethod?: StaffAuthMethod
+}
+
+export const BUILTIN_USER_ROLES: readonly BuiltinUserRole[] = [
+  'admin',
+  'gerant',
+  'caissier',
+  'cuisinier',
+] as const
+
+export function isBuiltinUserRole(value: unknown): value is BuiltinUserRole {
+  return (
+    value === 'admin' ||
+    value === 'gerant' ||
+    value === 'caissier' ||
+    value === 'cuisinier'
+  )
 }

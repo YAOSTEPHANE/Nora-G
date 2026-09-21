@@ -276,7 +276,7 @@ export function LoginScreen({ onSuccess }: Props) {
                             {p.displayName}
                           </span>
                           <span className="mt-0.5 block truncate text-[11px] text-[#6a7690]">
-                            {roleLabel(p.role)}
+                            {roleLabel(p.role, p.customRoleId)}
                             {p.storeId
                               ? ` · ${storeNameById.get(p.storeId) ?? p.storeId}`
                               : ''}
@@ -299,7 +299,7 @@ export function LoginScreen({ onSuccess }: Props) {
                           {selected.displayName}
                         </p>
                         <p className="truncate text-[11px] text-[#6a7690]">
-                          {roleLabel(selected.role)}
+                          {roleLabel(selected.role, selected.customRoleId)}
                         </p>
                       </div>
                     </div>

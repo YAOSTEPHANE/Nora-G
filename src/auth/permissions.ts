@@ -1,79 +1,13 @@
-import type { StaffProfile, StaffPermissions, UserRole } from './types'
+import { getCustomRole } from './customRoles'
+import { ROLE_DEFAULT_PERMISSIONS } from './roleDefaults'
+import type { StaffProfile, StaffPermissions } from './types'
 
-/** Permissions par défaut selon le rôle (granulaire). */
-export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, StaffPermissions> = {
-  admin: {
-    maxDiscountPct: 100,
-    canViewDashboard: true,
-    canViewAnalytique: true,
-    canViewJournalReport: true,
-    canManageCatalogFull: true,
-    canEditPrices: true,
-    canManageStocks: true,
-    canDailyClosure: true,
-    canProcessRefunds: true,
-    canSwitchStore: true,
-    canManagePersonnel: true,
-    canViewTeamPointage: true,
-    canConfigureStoresAdmin: true,
-    canManageIntegrations: true,
-    canConfigureAppSettings: true,
-  },
-  gerant: {
-    maxDiscountPct: 20,
-    canViewDashboard: true,
-    canViewAnalytique: true,
-    canViewJournalReport: true,
-    canManageCatalogFull: true,
-    canEditPrices: true,
-    canManageStocks: true,
-    canDailyClosure: true,
-    canProcessRefunds: true,
-    canSwitchStore: true,
-    canManagePersonnel: false,
-    canViewTeamPointage: true,
-    canConfigureStoresAdmin: false,
-    canManageIntegrations: false,
-    canConfigureAppSettings: true,
-  },
-  caissier: {
-    maxDiscountPct: 5,
-    canViewDashboard: false,
-    canViewAnalytique: false,
-    canViewJournalReport: true,
-    canManageCatalogFull: false,
-    canEditPrices: false,
-    canManageStocks: false,
-    canDailyClosure: false,
-    canProcessRefunds: false,
-    canSwitchStore: false,
-    canManagePersonnel: false,
-    canViewTeamPointage: false,
-    canConfigureStoresAdmin: false,
-    canManageIntegrations: false,
-    canConfigureAppSettings: false,
-  },
-  cuisinier: {
-    maxDiscountPct: 0,
-    canViewDashboard: false,
-    canViewAnalytique: false,
-    canViewJournalReport: false,
-    canManageCatalogFull: false,
-    canEditPrices: false,
-    canManageStocks: false,
-    canDailyClosure: false,
-    canProcessRefunds: false,
-    canSwitchStore: false,
-    canManagePersonnel: false,
-    canViewTeamPointage: false,
-    canConfigureStoresAdmin: false,
-    canManageIntegrations: false,
-    canConfigureAppSettings: false,
-  },
-}
+export { ROLE_DEFAULT_PERMISSIONS } from './roleDefaults'
 
 export function effectivePermissions(profile: StaffProfile): StaffPermissions {
-  const base = ROLE_DEFAULT_PERMISSIONS[profile.role]
+  const custom = getCustomRole(profile.customRoleId)
+  const base =
+    custom?.permissions ?? ROLE_DEFAULT_PERMISSIONS[profile.role]
   return { ...base, ...profile.permissionOverrides }
 }
 

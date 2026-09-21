@@ -1,4 +1,6 @@
 ﻿import type { StaffProfile } from './types'
+import { isBuiltinUserRole } from './types'
+import { builtinRoleLabel, getCustomRole } from './customRoles'
 import { isCloudApiConfigured } from '../lib/apiUrl'
 import { clientEnv } from '../lib/clientEnv'
 
@@ -93,10 +95,8 @@ function isStaffProfile(value: unknown): value is StaffProfile {
     typeof v.displayName === 'string' &&
     typeof v.initials === 'string' &&
     (v.storeId === undefined || typeof v.storeId === 'string') &&
-    (v.role === 'admin' ||
-      v.role === 'gerant' ||
-      v.role === 'caissier' ||
-      v.role === 'cuisinier') &&
+    isBuiltinUserRole(v.role) &&
+    (v.customRoleId === undefined || typeof v.customRoleId === 'string') &&
     typeof v.pin === 'string' &&
     (v.password === undefined || typeof v.password === 'string') &&
     (v.active === undefined || typeof v.active === 'boolean')
@@ -300,6 +300,7 @@ function computeInitials(displayName: string): string {
 export function createStaffProfile(input: {
   displayName: string
   role: StaffProfile['role']
+  customRoleId?: string | null
   storeId?: string
   pin: string
   password?: string
@@ -329,12 +330,24 @@ export function createStaffProfile(input: {
   if (all.some((p) => p.pin === pin)) {
     throw new Error('Ce PIN est déjà utilisé par un autre profil.')
   }
+
+  let role = input.role
+  let customRoleId = input.customRoleId?.trim() || undefined
+  if (customRoleId) {
+    const custom = getCustomRole(customRoleId)
+    if (!custom) throw new Error('Rôle métier introuvable.')
+    role = custom.baseRole
+  } else {
+    customRoleId = undefined
+  }
+
   const created: StaffProfile = {
     id: `profile-custom-${crypto.randomUUID()}`,
     displayName,
     initials: computeInitials(displayName),
-    role: input.role,
+    role,
     active: true,
+    ...(customRoleId ? { customRoleId } : {}),
     ...(storeId ? { storeId } : {}),
     pin,
     ...(password ? { password } : {}),
@@ -358,6 +371,7 @@ export function updateStaffProfile(
   patch: {
     displayName?: string
     role?: StaffProfile['role']
+    customRoleId?: string | null
     storeId?: string | null
     pin?: string
     password?: string | null
@@ -384,7 +398,21 @@ export function updateStaffProfile(
     next.displayName = displayName
     next.initials = computeInitials(displayName)
   }
-  if (patch.role !== undefined) next.role = patch.role
+  if (patch.customRoleId !== undefined) {
+    const customRoleId = patch.customRoleId?.trim() || undefined
+    if (customRoleId) {
+      const roleDef = getCustomRole(customRoleId)
+      if (!roleDef) throw new Error('Rôle métier introuvable.')
+      next.customRoleId = customRoleId
+      next.role = roleDef.baseRole
+    } else {
+      delete next.customRoleId
+      if (patch.role !== undefined) next.role = patch.role
+    }
+  } else if (patch.role !== undefined) {
+    next.role = patch.role
+    delete next.customRoleId
+  }
   if (patch.storeId !== undefined) {
     const storeId = patch.storeId?.trim() || undefined
     if (storeId) next.storeId = storeId
@@ -490,19 +518,28 @@ export function profileById(id: string): StaffProfile | undefined {
   return listStaffProfiles().find((p) => p.id === id)
 }
 
-export function roleLabel(role: StaffProfile['role']): string {
-  switch (role) {
-    case 'admin':
-      return 'Administrateur'
-    case 'gerant':
-      return 'Gérant'
-    case 'caissier':
-      return 'Caissier'
-    case 'cuisinier':
-      return 'Cuisinier'
-    default: {
-      const _exhaustive: never = role
-      return _exhaustive
-    }
+export function roleLabel(
+  role: StaffProfile['role'],
+  customRoleId?: string | null,
+): string {
+  const custom = getCustomRole(customRoleId)
+  if (custom) return custom.label
+  return builtinRoleLabel(role)
+}
+
+export function staffRoleLabel(profile: Pick<StaffProfile, 'role' | 'customRoleId'>): string {
+  return roleLabel(profile.role, profile.customRoleId)
+}
+
+/** Retire l’affectation d’un rôle métier sur tous les profils locaux. */
+export function clearCustomRoleAssignments(customRoleId: string): number {
+  const custom = readCustomProfiles()
+  let changed = 0
+  for (const profile of custom) {
+    if (profile.customRoleId !== customRoleId) continue
+    delete profile.customRoleId
+    changed += 1
   }
+  if (changed > 0) writeCustomProfiles(custom)
+  return changed
 }

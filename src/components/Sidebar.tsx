@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { UserRole } from '../auth/types'
-import { roleLabel } from '../auth/profiles'
+import { staffRoleLabel } from '../auth/profiles'
 import type { Store } from '../db/types'
 import {
   navSectionsForRole,
@@ -133,6 +133,7 @@ type CommonProps = {
     displayName: string
     initials: string
     role: UserRole
+    customRoleId?: string
   }
   onLogout: () => void
   navSections?: readonly NavSection[]
@@ -397,7 +398,7 @@ function SidebarBody({
                   {user.displayName}
                 </p>
                 <p className="truncate text-[10px] text-zinc-500">
-                  {roleLabel(user.role)}
+                  {staffRoleLabel(user)}
                 </p>
               </div>
             ) : null}

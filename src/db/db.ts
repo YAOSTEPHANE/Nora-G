@@ -1108,7 +1108,14 @@ export async function ensureDefaultProductCategories(
 
 async function ensureStores(): Promise<void> {
   if ((await db.stores.count()) === 0) {
-    await db.stores.bulkAdd(SEED_STORES)
+    try {
+      await db.stores.bulkAdd(SEED_STORES)
+    } catch {
+      // Race / clés déjà présentes (rechargement concurrent) — upsert unitaire.
+      for (const store of SEED_STORES) {
+        await db.stores.put(store)
+      }
+    }
   }
 }
 

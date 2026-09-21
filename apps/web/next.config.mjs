@@ -9,6 +9,8 @@ const apiOrigin = process.env.API_PROXY_TARGET ?? 'http://localhost:4000'
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: repoRoot,
+  // Monorepo : Next tourne dans apps/web ; Vercel attend .next à la racine du service.
+  distDir: '../../.next',
   allowedDevOrigins: ['127.0.0.1', 'localhost', '192.168.1.68'],
   // next-pwa injecte une config webpack → explicite pour Next 16
   turbopack: {},

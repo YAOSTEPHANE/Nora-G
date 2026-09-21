@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useMemo, useState } from 'react'
 import {
   changeStaffPassword,
+  clearCustomRoleAssignments,
   countActiveStaffProfiles,
   createStaffProfile,
   deactivateStaffProfile,
@@ -9,11 +10,29 @@ import {
   isCustomStaffProfile,
   listStaffProfiles,
   reactivateStaffProfile,
-  roleLabel,
+  staffRoleLabel,
   subscribeStaffProfiles,
   updateStaffProfile,
 } from '../auth/profiles'
-import type { StaffProfile, UserRole } from '../auth/types'
+import {
+  builtinRoleLabel,
+  createCustomRole,
+  deleteCustomRole,
+  getCustomRole,
+  listCustomRolesForDomain,
+  PERMISSION_FIELD_LABELS,
+  subscribeCustomRoles,
+  updateCustomRole,
+} from '../auth/customRoles'
+import { ROLE_DEFAULT_PERMISSIONS } from '../auth/roleDefaults'
+import type {
+  BuiltinUserRole,
+  CustomRole,
+  StaffPermissions,
+  StaffProfile,
+} from '../auth/types'
+import { getAppSettings, APP_SETTINGS_CHANGED_EVENT } from '../lib/appSettings'
+import { getBusinessDomainMeta } from '../lib/businessDomain'
 import { db } from '../db/db'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
@@ -63,6 +82,32 @@ const PERMISSIONS: PermRow[] = [
   { label: 'Connexions', caissier: false, gerant: false, admin: true },
 ]
 
+const BOOL_PERM_KEYS = (
+  Object.keys(PERMISSION_FIELD_LABELS) as (keyof StaffPermissions)[]
+).filter((k) => k !== 'maxDiscountPct')
+
+function roleAssignValue(profile: StaffProfile): string {
+  return profile.customRoleId
+    ? `custom:${profile.customRoleId}`
+    : `sys:${profile.role}`
+}
+
+function parseRoleAssign(value: string): {
+  role: BuiltinUserRole
+  customRoleId?: string
+} {
+  if (value.startsWith('custom:')) {
+    const customRoleId = value.slice('custom:'.length)
+    const def = getCustomRole(customRoleId)
+    return {
+      role: def?.baseRole ?? 'caissier',
+      customRoleId,
+    }
+  }
+  const role = value.replace(/^sys:/, '') as BuiltinUserRole
+  return { role }
+}
+
 function PermCell({ ok }: { ok: boolean }) {
   return (
     <Td align="center">
@@ -82,9 +127,16 @@ function PermCell({ ok }: { ok: boolean }) {
 export function PersonnelView({ currentProfileId }: Props) {
   const toast = useToast()
   const maxStaff = 0
+  const [businessDomain, setBusinessDomain] = useState(
+    () => getAppSettings().businessDomain,
+  )
+  const domainMeta = getBusinessDomainMeta(businessDomain)
   const [profiles, setProfiles] = useState(() => listStaffProfiles())
+  const [domainRoles, setDomainRoles] = useState(() =>
+    listCustomRolesForDomain(businessDomain),
+  )
   const [displayName, setDisplayName] = useState('')
-  const [role, setRole] = useState<UserRole>('caissier')
+  const [roleAssign, setRoleAssign] = useState('sys:caissier')
   const [pin, setPin] = useState('')
   const [password, setPassword] = useState('')
   const [createStoreId, setCreateStoreId] = useState('')
@@ -98,20 +150,55 @@ export function PersonnelView({ currentProfileId }: Props) {
   const [showCreatePassword, setShowCreatePassword] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
-  const [editRole, setEditRole] = useState<UserRole>('caissier')
+  const [editRoleAssign, setEditRoleAssign] = useState('sys:caissier')
   const [editStoreId, setEditStoreId] = useState('')
   const [editPin, setEditPin] = useState('')
+
+  const [newRoleLabel, setNewRoleLabel] = useState('')
+  const [newRoleBase, setNewRoleBase] = useState<BuiltinUserRole>('caissier')
+  const [newRolePerms, setNewRolePerms] = useState<StaffPermissions>(
+    () => ({ ...ROLE_DEFAULT_PERMISSIONS.caissier }),
+  )
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
+
   const stores = useLiveQuery(() => db.stores.orderBy('sortOrder').toArray(), [], []) ?? []
   const storeNameById = useMemo(
     () => new Map(stores.map((store) => [store.id, store.name])),
     [stores],
   )
 
+  const refreshRoles = (domain = businessDomain) => {
+    setDomainRoles(listCustomRolesForDomain(domain))
+  }
+
   useEffect(() => {
-    return subscribeStaffProfiles(() => {
+    const unsubStaff = subscribeStaffProfiles(() => {
       setProfiles(listStaffProfiles())
     })
-  }, [])
+    const unsubRoles = subscribeCustomRoles(() => {
+      refreshRoles()
+      setProfiles(listStaffProfiles())
+    })
+    const onSettings = () => {
+      const next = getAppSettings().businessDomain
+      setBusinessDomain(next)
+      setDomainRoles(listCustomRolesForDomain(next))
+      setEditingRoleId(null)
+      setNewRoleLabel('')
+      setNewRoleBase('caissier')
+      setNewRolePerms({ ...ROLE_DEFAULT_PERMISSIONS.caissier })
+    }
+    window.addEventListener(APP_SETTINGS_CHANGED_EVENT, onSettings)
+    return () => {
+      unsubStaff()
+      unsubRoles()
+      window.removeEventListener(APP_SETTINGS_CHANGED_EVENT, onSettings)
+    }
+  }, [businessDomain])
+
+  useEffect(() => {
+    setNewRolePerms({ ...ROLE_DEFAULT_PERMISSIONS[newRoleBase] })
+  }, [newRoleBase])
 
   const activeCount = useMemo(() => countActiveStaffProfiles(), [profiles])
   const totalByRole = useMemo(() => {
@@ -127,13 +214,16 @@ export function PersonnelView({ currentProfileId }: Props) {
     [profiles, currentProfileId],
   )
   const atStaffLimit = maxStaff > 0 && activeCount >= maxStaff
+  const isAdmin = currentProfile?.role === 'admin'
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      const parsed = parseRoleAssign(roleAssign)
       const created = createStaffProfile({
         displayName,
-        role,
+        role: parsed.role,
+        customRoleId: parsed.customRoleId ?? null,
         storeId: createStoreId || undefined,
         pin,
         password,
@@ -141,16 +231,85 @@ export function PersonnelView({ currentProfileId }: Props) {
       })
       toast.success(
         'Utilisateur créé',
-        `${created.displayName} · ${roleLabel(created.role)}`,
+        `${created.displayName} · ${staffRoleLabel(created)}`,
       )
       setDisplayName('')
-      setRole('caissier')
+      setRoleAssign('sys:caissier')
       setCreateStoreId('')
       setPin('')
       setPassword('')
     } catch (error) {
       toast.error(
         'Création impossible',
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+
+  const handleCreateRole = (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      if (editingRoleId) {
+        updateCustomRole(editingRoleId, {
+          label: newRoleLabel,
+          baseRole: newRoleBase,
+          permissions: newRolePerms,
+        })
+        toast.success('Rôle mis à jour', newRoleLabel.trim())
+      } else {
+        const created = createCustomRole({
+          label: newRoleLabel,
+          domain: businessDomain,
+          baseRole: newRoleBase,
+          permissions: newRolePerms,
+        })
+        toast.success('Rôle créé', `${created.label} · ${domainMeta.label}`)
+      }
+      setNewRoleLabel('')
+      setNewRoleBase('caissier')
+      setNewRolePerms({ ...ROLE_DEFAULT_PERMISSIONS.caissier })
+      setEditingRoleId(null)
+      refreshRoles()
+    } catch (error) {
+      toast.error(
+        editingRoleId ? 'Modification impossible' : 'Création impossible',
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+
+  const startEditRole = (role: CustomRole) => {
+    setEditingRoleId(role.id)
+    setNewRoleLabel(role.label)
+    setNewRoleBase(role.baseRole)
+    setNewRolePerms({ ...role.permissions })
+  }
+
+  const cancelEditRole = () => {
+    setEditingRoleId(null)
+    setNewRoleLabel('')
+    setNewRoleBase('caissier')
+    setNewRolePerms({ ...ROLE_DEFAULT_PERMISSIONS.caissier })
+  }
+
+  const removeRole = (role: CustomRole) => {
+    const assigned = profiles.filter((p) => p.customRoleId === role.id).length
+    const ok = window.confirm(
+      assigned > 0
+        ? `Supprimer le rôle « ${role.label} » ? ${assigned} utilisateur(s) repasseront sur le rôle système de base.`
+        : `Supprimer le rôle « ${role.label} » ?`,
+    )
+    if (!ok) return
+    try {
+      clearCustomRoleAssignments(role.id)
+      deleteCustomRole(role.id)
+      if (editingRoleId === role.id) cancelEditRole()
+      refreshRoles()
+      setProfiles(listStaffProfiles())
+      toast.success('Rôle supprimé', role.label)
+    } catch (error) {
+      toast.error(
+        'Suppression impossible',
         error instanceof Error ? error.message : String(error),
       )
     }
@@ -194,7 +353,7 @@ export function PersonnelView({ currentProfileId }: Props) {
     }
     setEditingId(p.id)
     setEditName(p.displayName)
-    setEditRole(p.role)
+    setEditRoleAssign(roleAssignValue(p))
     setEditStoreId(p.storeId ?? '')
     setEditPin('')
   }
@@ -202,9 +361,11 @@ export function PersonnelView({ currentProfileId }: Props) {
   const saveEdit = () => {
     if (!editingId) return
     try {
+      const parsed = parseRoleAssign(editRoleAssign)
       updateStaffProfile(editingId, {
         displayName: editName,
-        role: editRole,
+        role: parsed.role,
+        customRoleId: parsed.customRoleId ?? null,
         storeId: editStoreId || null,
         ...(editPin.trim() ? { pin: editPin } : {}),
       })
@@ -300,6 +461,141 @@ export function PersonnelView({ currentProfileId }: Props) {
           tone="amber"
         />
       </div>
+
+      {isAdmin ? (
+        <Card>
+          <CardContent className="space-y-4">
+            <div>
+              <h2 className="text-[14px] font-semibold text-zinc-900">
+                Rôles de l’activité
+              </h2>
+              <p className="mt-0.5 text-[12px] text-zinc-500">
+                Créez des rôles métier pour « {domainMeta.label} ». Ils
+                s’ajoutent aux rôles système et définissent les droits des
+                collaborateurs.
+              </p>
+            </div>
+
+            {domainRoles.length > 0 ? (
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {domainRoles.map((role) => (
+                  <li
+                    key={role.id}
+                    className="flex items-start justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-zinc-900">
+                        {role.label}
+                      </p>
+                      <p className="text-[11px] text-zinc-500">
+                        Base : {builtinRoleLabel(role.baseRole)} · remise max{' '}
+                        {role.permissions.maxDiscountPct} %
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => startEditRole(role)}
+                      >
+                        Modifier
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeRole(role)}
+                        aria-label={`Supprimer ${role.label}`}
+                      >
+                        <IconTrash className="h-3.5 w-3.5 text-rose-600" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-lg border border-dashed border-zinc-200 px-3 py-4 text-center text-[12px] text-zinc-500">
+                Aucun rôle métier pour cette activité. Créez-en un ci-dessous.
+              </p>
+            )}
+
+            <form onSubmit={handleCreateRole} className="space-y-3 border-t border-zinc-100 pt-3">
+              <p className="text-[12px] font-medium text-zinc-800">
+                {editingRoleId ? 'Modifier le rôle' : 'Nouveau rôle'}
+              </p>
+              <div className="grid gap-3 md:grid-cols-3">
+                <Field label="Nom du rôle" required className="md:col-span-2">
+                  <Input
+                    value={newRoleLabel}
+                    onChange={(e) => setNewRoleLabel(e.target.value)}
+                    placeholder="Ex: Serveur, Pharmacien, Styliste…"
+                    required
+                    minLength={2}
+                  />
+                </Field>
+                <Field label="Rôle de base" required>
+                  <Select
+                    value={newRoleBase}
+                    onChange={(e) =>
+                      setNewRoleBase(e.target.value as BuiltinUserRole)
+                    }
+                  >
+                    <option value="caissier">Caissier</option>
+                    <option value="cuisinier">Cuisinier</option>
+                    <option value="gerant">Gérant</option>
+                  </Select>
+                </Field>
+              </div>
+              <Field label="Plafond de remise (%)">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={newRolePerms.maxDiscountPct}
+                  onChange={(e) =>
+                    setNewRolePerms((prev) => ({
+                      ...prev,
+                      maxDiscountPct: Number(e.target.value) || 0,
+                    }))
+                  }
+                />
+              </Field>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {BOOL_PERM_KEYS.map((key) => (
+                  <label
+                    key={key}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-[12px] text-zinc-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(newRolePerms[key])}
+                      onChange={(e) =>
+                        setNewRolePerms((prev) => ({
+                          ...prev,
+                          [key]: e.target.checked,
+                        }))
+                      }
+                      className="rounded border-zinc-300"
+                    />
+                    <span>{PERMISSION_FIELD_LABELS[key]}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" variant="accent">
+                  {editingRoleId ? 'Enregistrer le rôle' : 'Créer le rôle'}
+                </Button>
+                {editingRoleId ? (
+                  <Button type="button" variant="ghost" onClick={cancelEditRole}>
+                    Annuler
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardContent>
@@ -416,14 +712,25 @@ export function PersonnelView({ currentProfileId }: Props) {
             </Field>
             <Field label="Rôle" required>
               <Select
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
+                value={roleAssign}
+                onChange={(e) => setRoleAssign(e.target.value)}
                 disabled={atStaffLimit}
               >
-                <option value="caissier">Caissier</option>
-                <option value="cuisinier">Cuisinier</option>
-                <option value="gerant">Gérant</option>
-                <option value="admin">Administrateur</option>
+                <optgroup label="Rôles système">
+                  <option value="sys:caissier">Caissier</option>
+                  <option value="sys:cuisinier">Cuisinier</option>
+                  <option value="sys:gerant">Gérant</option>
+                  <option value="sys:admin">Administrateur</option>
+                </optgroup>
+                {domainRoles.length > 0 ? (
+                  <optgroup label={`Rôles · ${domainMeta.label}`}>
+                    {domainRoles.map((r) => (
+                      <option key={r.id} value={`custom:${r.id}`}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </Select>
             </Field>
             <Field label="Magasin assigné">
@@ -624,7 +931,7 @@ export function PersonnelView({ currentProfileId }: Props) {
                         {p.displayName}
                       </p>
                       <p className="text-[11px] text-zinc-500">
-                        {roleLabel(p.role)}
+                        {staffRoleLabel(p)}
                         {!custom ? ' · démo' : ''}
                       </p>
                       <p className="text-[11px] text-zinc-500">
@@ -658,13 +965,24 @@ export function PersonnelView({ currentProfileId }: Props) {
                     </Field>
                     <Field label="Rôle">
                       <Select
-                        value={editRole}
-                        onChange={(e) => setEditRole(e.target.value as UserRole)}
+                        value={editRoleAssign}
+                        onChange={(e) => setEditRoleAssign(e.target.value)}
                       >
-                        <option value="caissier">Caissier</option>
-                        <option value="cuisinier">Cuisinier</option>
-                        <option value="gerant">Gérant</option>
-                        <option value="admin">Administrateur</option>
+                        <optgroup label="Rôles système">
+                          <option value="sys:caissier">Caissier</option>
+                          <option value="sys:cuisinier">Cuisinier</option>
+                          <option value="sys:gerant">Gérant</option>
+                          <option value="sys:admin">Administrateur</option>
+                        </optgroup>
+                        {domainRoles.length > 0 ? (
+                          <optgroup label={`Rôles · ${domainMeta.label}`}>
+                            {domainRoles.map((r) => (
+                              <option key={r.id} value={`custom:${r.id}`}>
+                                {r.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
                       </Select>
                     </Field>
                     <Field label="Magasin">

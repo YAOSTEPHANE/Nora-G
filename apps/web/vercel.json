@@ -1,4 +1,4 @@
-﻿{
+{
   "framework": "nextjs",
   "installCommand": "cd ../.. && npm ci",
   "buildCommand": "cd ../.. && npx prisma generate && npm run build -w @nora/web",
