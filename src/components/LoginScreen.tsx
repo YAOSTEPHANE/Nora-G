@@ -1,32 +1,17 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { profileSecretMatches } from '../auth/permissions'
 import {
   DEFAULT_OWNER_PIN,
   ensureOwnerAdminProfile,
   listActiveStaffProfiles,
-  roleLabel,
   subscribeStaffProfiles,
 } from '../auth/profiles'
 import type { StaffAuthMethod, StaffProfile } from '../auth/types'
-import { BRAND_NAME } from '../brand'
 import { BrandLogo } from './BrandLogo'
 import { useSubscription } from '../context/SubscriptionContext'
-import { db } from '../db/db'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { Button } from '../ui/Button'
 import { cn } from '../ui/cn'
-import { EmptyState } from '../ui/EmptyState'
-import { Field, Input } from '../ui/Input'
-import {
-  IconArrowLeft,
-  IconArrowRight,
-  IconCaisse,
-  IconEye,
-  IconEyeOff,
-  IconOffline,
-  IconShield,
-  IconStore,
-} from '../ui/icons'
+import { IconDelete, IconEye, IconEyeOff } from '../ui/icons'
 
 type Props = {
   onSuccess: (profile: StaffProfile, authMethod: StaffAuthMethod) => void
@@ -34,19 +19,14 @@ type Props = {
 
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_MS = 30_000
-
-const HIGHLIGHTS = [
-  { icon: IconCaisse, label: 'Caisse' },
-  { icon: IconOffline, label: 'Hors ligne' },
-  { icon: IconStore, label: 'Magasins' },
-] as const
+const PIN_LEN = 4
+const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'] as const
 
 export function LoginScreen({ onSuccess }: Props) {
   const { organization } = useSubscription()
   const [profiles, setProfiles] = useState<StaffProfile[]>(() =>
     listActiveStaffProfiles(),
   )
-  const [selected, setSelected] = useState<StaffProfile | null>(null)
   const [secret, setSecret] = useState('')
   const [showSecret, setShowSecret] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,11 +35,8 @@ export function LoginScreen({ onSuccess }: Props) {
   const [now, setNow] = useState(() => new Date())
   const [bootstrappedOwner, setBootstrappedOwner] = useState(false)
   const [shakeKey, setShakeKey] = useState(0)
-  const [stepKey, setStepKey] = useState(0)
   const [cardReady, setCardReady] = useState(false)
-  const stores =
-    useLiveQuery(() => db.stores.orderBy('sortOrder').toArray(), [], []) ?? []
-  const storeNameById = new Map(stores.map((store) => [store.id, store.name]))
+  const [mode, setMode] = useState<'pin' | 'password'>('pin')
 
   useEffect(() => {
     if (listActiveStaffProfiles().length > 0) return
@@ -74,11 +51,7 @@ export function LoginScreen({ onSuccess }: Props) {
 
   useEffect(() => {
     return subscribeStaffProfiles(() => {
-      const next = listActiveStaffProfiles()
-      setProfiles(next)
-      setSelected((prev) =>
-        prev ? (next.find((p) => p.id === prev.id) ?? null) : prev,
-      )
+      setProfiles(listActiveStaffProfiles())
     })
   }, [])
 
@@ -97,71 +70,99 @@ export function LoginScreen({ onSuccess }: Props) {
     return Math.ceil((lockedUntil - now.getTime()) / 1000)
   }, [lockedUntil, now])
 
-  const timeLabel = useMemo(
-    () =>
-      now.toLocaleTimeString('fr-FR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    [now],
-  )
-  const dateLabel = useMemo(
-    () =>
-      now.toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-      }),
-    [now],
-  )
+  const orgLabel = organization?.name?.trim() || null
+  const locked = lockRemainingSec > 0 || profiles.length === 0
 
-  const handleSelect = (p: StaffProfile) => {
-    setSelected(p)
-    setSecret('')
-    setError(null)
-    setShowSecret(false)
-    setStepKey((k) => k + 1)
-  }
-
-  const handleBack = () => {
-    setSelected(null)
-    setSecret('')
-    setError(null)
-    setShowSecret(false)
-    setStepKey((k) => k + 1)
-  }
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    if (!selected) return
+  const attemptAuth = (rawSecret: string) => {
     if (lockRemainingSec > 0) {
       setError(`Trop d’essais. Patientez ${lockRemainingSec}s.`)
       setShakeKey((k) => k + 1)
       return
     }
-    const s = secret.trim()
-    if (!profileSecretMatches(selected, s)) {
+    if (profiles.length === 0) {
+      setError('Aucun profil disponible.')
+      setShakeKey((k) => k + 1)
+      return
+    }
+
+    const s = rawSecret.trim()
+    if (!s) return
+
+    const matched = profiles.find((p) => profileSecretMatches(p, s))
+    if (!matched) {
       const nextFails = failedAttempts + 1
       setFailedAttempts(nextFails)
       setShakeKey((k) => k + 1)
+      setSecret('')
       if (nextFails >= MAX_FAILED_ATTEMPTS) {
         setLockedUntil(Date.now() + LOCKOUT_MS)
         setFailedAttempts(0)
-        setError('Trop d’essais. Compte verrouillé 30 secondes.')
+        setError('Compte verrouillé 30 secondes.')
       } else {
         setError(
-          `Code incorrect (${MAX_FAILED_ATTEMPTS - nextFails} essai(s) restant(s))`,
+          `Code incorrect · ${MAX_FAILED_ATTEMPTS - nextFails} restant(s)`,
         )
       }
       return
     }
+
     setFailedAttempts(0)
     setLockedUntil(0)
+    setError(null)
     const authMethod: StaffAuthMethod =
-      selected.password !== undefined && s === selected.password
+      matched.password !== undefined && s === matched.password
         ? 'password'
         : 'pin'
-    onSuccess(selected, authMethod)
+    onSuccess(matched, authMethod)
+  }
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    attemptAuth(secret)
+  }
+
+  const pushDigit = (digit: string) => {
+    if (locked) return
+    setError(null)
+    setSecret((prev) => {
+      if (prev.length >= 8) return prev
+      const next = prev + digit
+      if (next.length >= PIN_LEN) {
+        window.setTimeout(() => attemptAuth(next), 50)
+      }
+      return next
+    })
+  }
+
+  const clearDigit = () => {
+    if (locked) return
+    setSecret((prev) => prev.slice(0, -1))
+    setError(null)
+  }
+
+  useEffect(() => {
+    if (mode !== 'pin' || locked) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Backspace') {
+        e.preventDefault()
+        clearDigit()
+        return
+      }
+      if (/^\d$/.test(e.key)) {
+        e.preventDefault()
+        pushDigit(e.key)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, locked, failedAttempts, profiles, secret])
+
+  const switchMode = (next: 'pin' | 'password') => {
+    setMode(next)
+    setSecret('')
+    setError(null)
+    setShowSecret(false)
   }
 
   return (
@@ -171,47 +172,9 @@ export function LoginScreen({ onSuccess }: Props) {
       <div className="login-brand-orb login-brand-orb--b" aria-hidden />
       <div className="login-brand-orb login-brand-orb--c" aria-hidden />
       <div className="login-brand-grid" aria-hidden />
-      <div className="login-sheen" aria-hidden />
-      <div className="login-particles" aria-hidden>
-        {Array.from({ length: 12 }, (_, i) => (
-          <span
-            key={i}
-            className="login-particle"
-            style={{ '--i': i } as CSSProperties}
-          />
-        ))}
-      </div>
-
-      <aside className="login-brand login-brand--left">
-        <div className="login-reveal login-reveal--1 flex items-center gap-3">
-          <BrandLogo size="md" ring="dark" className="login-logo-glow" />
-          <span className="select-none font-display text-[1.85rem] font-semibold tracking-[-0.04em] text-white">
-            {BRAND_NAME}
-          </span>
-        </div>
-        <div className="login-reveal login-reveal--2 max-w-sm">
-          <p className="login-eyebrow text-[11px] font-semibold uppercase tracking-[0.22em] text-[#9bb8ff]">
-            Point de vente
-          </p>
-          <h2 className="mt-3 font-display text-[1.85rem] font-semibold leading-[1.12] tracking-[-0.038em] text-white xl:text-[2.15rem]">
-            <span className="login-headline-line">Bonjour.</span>
-            <br />
-            <span className="login-headline-line login-headline-line--delay">
-              On ouvre la journée.
-            </span>
-          </h2>
-          <p className="mt-4 text-[14px] leading-relaxed text-white/70">
-            Identifiez-vous pour encaisser, suivre le stock et piloter le
-            magasin.
-          </p>
-        </div>
-        <p className="login-reveal login-reveal--3 text-[11px] text-white/45">
-          <span className="capitalize">{dateLabel}</span>
-        </p>
-      </aside>
 
       <main className="login-main">
-        <div className="relative z-[1] w-full">
+        <div className="relative z-1 w-full">
           <div
             className={cn(
               'login-card',
@@ -220,181 +183,176 @@ export function LoginScreen({ onSuccess }: Props) {
             )}
             data-shake-parity={shakeKey % 2}
           >
-            <div className="login-card-glow" aria-hidden />
-            <p className="mb-5 flex items-center gap-2.5 font-display text-2xl font-semibold tracking-[-0.04em] text-[#0033aa] lg:hidden">
-              <BrandLogo size="sm" ring="subtle" />
-              {BRAND_NAME}
-            </p>
-            <div className="mb-6">
-              <span className="login-badge inline-flex items-center gap-1.5 rounded-full border border-[#0033aa]/15 bg-[#e8eefa] px-3 py-1 text-[11px] font-semibold text-[#0033aa]">
-                <IconShield className="h-3 w-3" />
-                Accès équipe
-              </span>
-              <h1 className="mt-3 font-display text-[1.55rem] font-semibold tracking-[-0.03em] text-[#10182b]">
-                {selected ? 'Votre code' : 'Qui êtes-vous ?'}
-              </h1>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-[#5a657c]">
-                {selected
-                  ? `Entrez votre PIN${selected.password ? ' ou mot de passe' : ''} pour démarrer.`
-                  : 'Touchez votre nom pour continuer.'}
-              </p>
-              {bootstrappedOwner && !selected ? (
-                <p className="login-hint mt-3 rounded-xl border border-amber-200/80 bg-amber-50 px-3.5 py-2.5 text-[12px] leading-relaxed text-amber-950">
-                  Première connexion : code{' '}
-                  <span className="font-mono font-semibold">
-                    {DEFAULT_OWNER_PIN}
-                  </span>
-                  . Vous pourrez le changer ensuite.
-                </p>
+            <header className="login-card-head">
+              <BrandLogo size="md" ring="subtle" className="login-logo-glow" />
+              {orgLabel ? (
+                <p className="login-card-org">{orgLabel}</p>
               ) : null}
+              <h1 className="login-card-title">Ouvrir la caisse</h1>
+              <p className="login-card-sub">
+                {mode === 'pin'
+                  ? 'Saisissez votre code PIN'
+                  : 'Saisissez votre mot de passe'}
+              </p>
+            </header>
+
+            {bootstrappedOwner ? (
+              <p className="login-hint">
+                Première connexion — code{' '}
+                <span className="font-mono font-semibold tracking-wider">
+                  {DEFAULT_OWNER_PIN}
+                </span>
+              </p>
+            ) : null}
+
+            <div className="login-mode-tabs" role="tablist" aria-label="Type d’accès">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'pin'}
+                className={cn(
+                  'login-mode-tab',
+                  mode === 'pin' && 'login-mode-tab--on',
+                )}
+                onClick={() => switchMode('pin')}
+              >
+                PIN
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'password'}
+                className={cn(
+                  'login-mode-tab',
+                  mode === 'password' && 'login-mode-tab--on',
+                )}
+                onClick={() => switchMode('password')}
+              >
+                Mot de passe
+              </button>
             </div>
 
-            <div key={stepKey} className="login-step">
-              {!selected ? (
-                <div className="space-y-2">
-                  {profiles.length === 0 ? (
-                    <EmptyState
-                      title="Personne n’est encore inscrit"
-                      description="Un administrateur doit d’abord créer un membre de l’équipe."
+            {mode === 'pin' ? (
+              <div className="login-pin-flow">
+                <div
+                  className={cn('login-pin-dots', error && 'login-pin-dots--err')}
+                  aria-live="polite"
+                  aria-label={`PIN : ${secret.length} chiffre(s)`}
+                >
+                  {Array.from({ length: PIN_LEN }).map((_, i) => (
+                    <span
+                      key={i}
+                      className={cn(
+                        'login-pin-dot',
+                        i < secret.length && 'login-pin-dot--on',
+                      )}
                     />
-                  ) : (
-                    profiles.map((p, index) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => handleSelect(p)}
-                        className="login-profile group"
-                        style={
-                          {
-                            '--stagger': index,
-                          } as CSSProperties
-                        }
-                      >
-                        <span className="login-avatar">{p.initials}</span>
-                        <span className="min-w-0 flex-1 text-left">
-                          <span className="block truncate text-[14px] font-semibold text-[#10182b]">
-                            {p.displayName}
-                          </span>
-                          <span className="mt-0.5 block truncate text-[11px] text-[#6a7690]">
-                            {roleLabel(p.role, p.customRoleId)}
-                            {p.storeId
-                              ? ` · ${storeNameById.get(p.storeId) ?? p.storeId}`
-                              : ''}
-                          </span>
-                        </span>
-                        <IconArrowRight className="h-4 w-4 shrink-0 text-[#9aa6bc] transition duration-300 group-hover:translate-x-1 group-hover:text-[#0033aa]" />
-                      </button>
-                    ))
-                  )}
+                  ))}
                 </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="login-selected flex items-center justify-between gap-3 rounded-2xl border border-[#0033aa]/10 bg-[#f4f6fb] px-3 py-2.5">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="login-avatar login-avatar--solid login-avatar--pulse">
-                        {selected.initials}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-[14px] font-semibold text-[#10182b]">
-                          {selected.displayName}
-                        </p>
-                        <p className="truncate text-[11px] text-[#6a7690]">
-                          {roleLabel(selected.role, selected.customRoleId)}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      iconLeft={<IconArrowLeft />}
-                      onClick={handleBack}
-                    >
-                      Changer
-                    </Button>
-                  </div>
 
-                  <Field
-                    label="Code d’accès"
-                    error={error ?? undefined}
-                    required
-                  >
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type={showSecret ? 'text' : 'password'}
-                        autoComplete="current-password"
-                        inputMode="numeric"
-                        value={secret}
-                        onChange={(e) => {
-                          setSecret(e.target.value)
-                          setError(null)
-                        }}
-                        placeholder="••••"
-                        autoFocus
-                        disabled={lockRemainingSec > 0}
-                        className="font-mono-nums text-base tracking-[0.35em]"
-                        invalid={!!error}
-                      />
-                      <Button
+                {error ? (
+                  <p className="login-error" role="alert">
+                    {error}
+                  </p>
+                ) : lockRemainingSec > 0 ? (
+                  <p className="login-status">Patientez {lockRemainingSec}s</p>
+                ) : (
+                  <p className="login-status">Touchez les chiffres</p>
+                )}
+
+                <div className="login-pad" aria-label="Clavier PIN">
+                  {PIN_KEYS.map((key, idx) => {
+                    if (key === '') {
+                      return <span key={`empty-${idx}`} />
+                    }
+                    if (key === 'del') {
+                      return (
+                        <button
+                          key="del"
+                          type="button"
+                          className="login-pad-key login-pad-key--mute"
+                          aria-label="Effacer"
+                          disabled={locked}
+                          onClick={clearDigit}
+                        >
+                          <IconDelete className="h-5 w-5" />
+                        </button>
+                      )
+                    }
+                    return (
+                      <button
+                        key={key}
                         type="button"
-                        size="sm"
-                        variant="ghost"
-                        className={cn('shrink-0')}
-                        aria-label={
-                          showSecret
-                            ? 'Masquer le secret'
-                            : 'Afficher le secret'
-                        }
-                        onClick={() => setShowSecret((v) => !v)}
+                        className="login-pad-key"
+                        disabled={locked}
+                        onClick={() => pushDigit(key)}
                       >
-                        {showSecret ? <IconEyeOff /> : <IconEye />}
-                      </Button>
-                    </div>
-                  </Field>
+                        {key}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="login-pass-flow">
+                <label className="login-pass-field">
+                  <span className="login-pass-label">Mot de passe</span>
+                  <div className="login-pass-row">
+                    <input
+                      type={showSecret ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      value={secret}
+                      onChange={(e) => {
+                        setSecret(e.target.value)
+                        setError(null)
+                      }}
+                      placeholder="••••••••"
+                      autoFocus
+                      disabled={locked}
+                      className={cn(
+                        'login-pass-input',
+                        error && 'login-pass-input--err',
+                      )}
+                    />
+                    <button
+                      type="button"
+                      className="login-pass-eye"
+                      aria-label={showSecret ? 'Masquer' : 'Afficher'}
+                      onClick={() => setShowSecret((v) => !v)}
+                    >
+                      {showSecret ? (
+                        <IconEyeOff className="h-4 w-4" />
+                      ) : (
+                        <IconEye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  {error ? (
+                    <span className="login-error login-error--left" role="alert">
+                      {error}
+                    </span>
+                  ) : null}
+                </label>
 
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    fullWidth
-                    size="lg"
-                    className="login-submit"
-                    disabled={lockRemainingSec > 0}
-                  >
-                    {lockRemainingSec > 0
-                      ? `Patientez ${lockRemainingSec}s`
-                      : 'Démarrer'}
-                  </Button>
-                </form>
-              )}
-            </div>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  fullWidth
+                  size="lg"
+                  className="login-submit"
+                  disabled={locked || !secret.trim()}
+                >
+                  {lockRemainingSec > 0
+                    ? `Patientez ${lockRemainingSec}s`
+                    : 'Démarrer'}
+                </Button>
+              </form>
+            )}
+
+            <p className="login-card-foot">Session locale sur cet appareil</p>
           </div>
         </div>
       </main>
-
-      <aside className="login-brand login-brand--right">
-        <span className="login-reveal login-reveal--1 login-clock font-mono-nums text-right text-[13px] font-semibold tabular-nums text-white/80">
-          {timeLabel}
-        </span>
-        <div className="login-reveal login-reveal--2 flex max-w-sm flex-col items-end">
-          <ul className="flex flex-wrap justify-end gap-2">
-            {HIGHLIGHTS.map(({ icon: Icon, label }, index) => (
-              <li
-                key={label}
-                className="login-chip"
-                style={{ '--stagger': index } as CSSProperties}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-6 text-right text-[13px] leading-relaxed text-white/65">
-            Tout reste sur cet appareil, même sans internet.
-          </p>
-        </div>
-        <p className="login-reveal login-reveal--3 text-right text-[11px] text-white/45">
-          {BRAND_NAME}
-        </p>
-      </aside>
     </div>
   )
 }

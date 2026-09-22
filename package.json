@@ -8,9 +8,10 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/ensure-web-src-link.mjs",
-    "dev": "npm run dev -w @nora/web",
+    "dev": "concurrently -k -n API,WEB -c green,cyan \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:web": "npm run dev -w @nora/web",
     "dev:api": "tsx watch server/server.ts",
-    "dev:full": "concurrently -k -n API,WEB -c green,cyan \"npm:dev:api\" \"npm:dev\"",
+    "dev:full": "npm run dev",
     "prebuild": "prisma generate",
     "build": "npm run build:api && npm run build -w @nora/web",
     "build:api": "tsc -p tsconfig.server.json",
