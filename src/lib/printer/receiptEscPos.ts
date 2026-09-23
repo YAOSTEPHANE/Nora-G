@@ -74,7 +74,9 @@ function resolveSale(source: ReceiptPrintSource): {
       sale: source.sale,
       order: null,
       ticketInvoice: null,
-      documentLabel: receiptDocumentLabel('sale'),
+      documentLabel: source.sale.fne?.invoiceNumber
+        ? receiptDocumentLabel('fne')
+        : receiptDocumentLabel('sale'),
     }
   }
   if (source.kind === 'onlineOrder') {
@@ -109,14 +111,18 @@ export function buildEscPosReceipt(
     timeStyle: 'short',
   })
   const receiptRef = (
-    ticketInvoice?.reference ?? sale.id.slice(0, 8)
+    ticketInvoice?.reference ??
+    sale.fne?.invoiceNumber ??
+    sale.id.slice(0, 8)
   ).toUpperCase()
   const vatSlices = vatSlicesFromLinesTTC(sale.lines, sale.discountPct)
   const amt = salePaymentAmounts(sale)
   const footer =
     order != null
       ? 'Commande en ligne · Document non fiscal'
-      : getAppSettings().receiptFooterLine
+      : sale.fne?.invoiceNumber
+        ? `FNE · ${sale.fne.invoiceNumber}`
+        : getAppSettings().receiptFooterLine
 
   const chunks: Uint8Array[] = [
     cmdInit(),
@@ -131,6 +137,11 @@ export function buildEscPosReceipt(
     textLine(`Session #${SESSION_ID}`),
     textLine(`Ref. ${receiptRef}`),
   ]
+
+  if (sale.fne?.invoiceNumber) {
+    chunks.push(textLine(`N° FNE : ${sale.fne.invoiceNumber}`))
+    if (sale.fne.nif) chunks.push(textLine(`NIF : ${sale.fne.nif}`))
+  }
 
   if (sale.cashierDisplayName) {
     chunks.push(textLine(`Caissier : ${sale.cashierDisplayName}`))

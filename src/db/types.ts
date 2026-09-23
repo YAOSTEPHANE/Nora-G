@@ -539,6 +539,61 @@ export interface Product {
   supplierRef?: string
   /** Si true, le stock magasin est la somme des variantes. */
   hasVariants?: boolean
+  /**
+   * Champs des sections de formulaire personnalisées (par activité).
+   * Clé = ProductFormField.key
+   */
+  customFields?: Record<string, string | number | boolean | null>
+}
+
+/** Type de champ dans une section formulaire article. */
+export type ProductFormFieldType =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'select'
+  | 'boolean'
+  | 'date'
+
+export interface ProductFormField {
+  id: string
+  /** Clé de stockage dans product.customFields */
+  key: string
+  label: string
+  type: ProductFormFieldType
+  required?: boolean
+  hint?: string
+  placeholder?: string
+  /** Options pour type select */
+  options?: string[]
+  /** Largeur grille (1–3 colonnes selon la section) */
+  span?: 1 | 2 | 3
+}
+
+/** Section du formulaire article, scoped à une activité métier. */
+export interface ProductFormSection {
+  id: string
+  domain:
+    | 'retail'
+    | 'pharmacy'
+    | 'it'
+    | 'hardware'
+    | 'restaurant'
+    | 'bakery'
+    | 'beauty'
+    | 'wholesale'
+    | 'fashion'
+    | 'hotel'
+  title: string
+  description?: string
+  sortOrder: number
+  columns: 1 | 2 | 3
+  fields: ProductFormField[]
+  active: boolean
+  /** true = section fournie par défaut (modifiables) */
+  isDefault?: boolean
+  createdAt: number
+  updatedAt: number
 }
 
 /** Variante produit (taille, couleur, conditionnement…). */
@@ -806,6 +861,17 @@ export interface Sale {
   loyaltyPointsEarned?: number
   loyaltyPointsRedeemed?: number
   loyaltyDiscountTTC?: number
+  /**
+   * Facture Normalisée Électronique (CI) générée à l’encaissement
+   * à partir des lignes / totaux de la vente (sans double saisie).
+   */
+  fne?: {
+    invoiceNumber: string
+    issuedAt: number
+    nif: string | null
+    regime: string
+    status: 'issued'
+  }
 }
 
 /** Remboursement enregistré (traçabilité). */

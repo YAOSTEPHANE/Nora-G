@@ -11,9 +11,11 @@ import {
 } from '../lib/appSettings'
 import { VIEW_LABELS } from '../navigation'
 import {
+  ensureAllLocationStockRows,
   ensureAllStoreStockRows,
   ensureDomainProductCategories,
   ensureDomainSampleProductsIfEmpty,
+  ensureDomainStocksConcordant,
   ensureSeed,
   loadTestData,
   migrateProductBusinessDomains,
@@ -63,14 +65,23 @@ import {
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { Card, CardContent } from '../ui/Card'
+import { FormSwitchRow } from '../ui/Form'
 import { Field, Input, Select } from '../ui/Input'
 import { PageHeader } from '../ui/PageHeader'
 import { Switch } from '../ui/Switch'
 import { Tabs } from '../ui/Tabs'
 import { useToast } from '../ui/Toast'
 import { IconSettings, IconStore } from '../ui/icons'
+import { ProductFormSectionsAdmin } from '../components/ProductFormSectionsAdmin'
+import { ensureDefaultProductFormSections } from '../lib/productFormSections'
 
-type TabId = 'general' | 'caisse' | 'service' | 'peripheriques' | 'modules'
+type TabId =
+  | 'general'
+  | 'caisse'
+  | 'service'
+  | 'peripheriques'
+  | 'modules'
+  | 'formulaires'
 
 type Props = {
   activeStoreId: string
@@ -125,6 +136,7 @@ export function ParametresView({
       { id: 'service' as const, label: 'Service' },
       { id: 'peripheriques' as const, label: 'Périphériques' },
       { id: 'modules' as const, label: 'Modules' },
+      { id: 'formulaires' as const, label: 'Formulaires' },
     ],
     [],
   )
@@ -391,36 +403,28 @@ export function ParametresView({
                 <option value="confort">Confort (cartes plus grandes)</option>
               </Select>
             </Field>
-            <label className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2.5">
-              <div>
-                <p className="text-[13px] font-medium text-ink">Bloquer la vente si stock à 0</p>
-                <p className="text-[11px] text-ink-subtle">
-                  Empêche d’ajouter au panier au-delà du stock disponible.
-                </p>
-              </div>
+            <FormSwitchRow
+              label="Bloquer la vente si stock à 0"
+              hint="Empêche d’ajouter au panier au-delà du stock disponible."
+            >
               <Switch
                 checked={settings.blockSaleWhenOutOfStock}
                 onChange={(e) =>
                   patchSettings({ blockSaleWhenOutOfStock: e.target.checked })
                 }
               />
-            </label>
-            <label className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2.5">
-              <div>
-                <p className="text-[13px] font-medium text-ink">Impression auto après vente</p>
-                <p className="text-[11px] text-ink-subtle">
-                  Dès l’encaissement, ouvre le ticket et le dialogue d’impression
-                  Windows (choisir POS-80). Nécessite « Imprimantes tickets » activé
-                  dans Périphériques.
-                </p>
-              </div>
+            </FormSwitchRow>
+            <FormSwitchRow
+              label="Impression auto après vente"
+              hint="Dès l’encaissement, ouvre le ticket et le dialogue d’impression Windows (POS-80). Nécessite « Imprimantes tickets » dans Périphériques."
+            >
               <Switch
                 checked={settings.autoPrintReceiptAfterSale}
                 onChange={(e) =>
                   patchSettings({ autoPrintReceiptAfterSale: e.target.checked })
                 }
               />
-            </label>
+            </FormSwitchRow>
           </CardContent>
         </Card>
       ) : null}
@@ -459,20 +463,17 @@ export function ParametresView({
           <Card>
             <CardContent className="space-y-3">
               <h3 className="text-[14px] font-semibold text-ink">Tables & salle</h3>
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2.5">
-                <div>
-                  <p className="text-[13px] font-medium text-ink">Libération auto des tables</p>
-                  <p className="text-[11px] text-ink-subtle">
-                    Repasse une table occupée en « libre » après inactivité.
-                  </p>
-                </div>
+              <FormSwitchRow
+                label="Libération auto des tables"
+                hint="Repasse une table occupée en « libre » après inactivité."
+              >
                 <Switch
                   checked={settings.tableAutoReleaseEnabled}
                   onChange={(e) =>
                     patchSettings({ tableAutoReleaseEnabled: e.target.checked })
                   }
                 />
-              </label>
+              </FormSwitchRow>
               <Field label="Délai avant libération (minutes, min. 15)">
                 <Input
                   inputMode="numeric"
@@ -810,14 +811,29 @@ export function ParametresView({
                           try {
                             await migrateProductBusinessDomains()
                             await ensureDomainProductCategories(next)
+                            await ensureDefaultProductFormSections(next)
                             const seeded =
                               await ensureDomainSampleProductsIfEmpty(next)
+                            const stockFilled =
+                              await ensureDomainStocksConcordant(next)
                             await ensureAllStoreStockRows()
+                            await ensureAllLocationStockRows()
                             await syncProductCategoriesFromProducts()
+                            const extras: string[] = []
+                            if (seeded > 0) {
+                              extras.push(
+                                `${seeded} articles d’exemple ajoutés`,
+                              )
+                            }
+                            if (stockFilled > 0) {
+                              extras.push(
+                                `stocks alignés (${stockFilled} réf.)`,
+                              )
+                            }
                             toast.success(
                               'Domaine mis à jour',
-                              seeded > 0
-                                ? `${domain.label} — ${seeded} articles d’exemple ajoutés`
+                              extras.length > 0
+                                ? `${domain.label} — ${extras.join(' · ')}`
                                 : domain.label,
                             )
                           } catch (e) {
@@ -911,6 +927,10 @@ export function ParametresView({
             </Card>
           ) : null}
         </div>
+      ) : null}
+
+      {tab === 'formulaires' ? (
+        <ProductFormSectionsAdmin domain={settings.businessDomain} />
       ) : null}
     </div>
   )

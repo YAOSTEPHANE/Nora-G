@@ -190,14 +190,14 @@ export function CatalogueView({
       0,
     )
     return {
-      total: products.length,
+      total: rowsWithStock.length,
       active: activeProducts.length,
-      archived: products.filter((p) => p.archived).length,
+      archived: rowsWithStock.filter((p) => p.archived).length,
       rupture,
       alerte,
       valuation,
     }
-  }, [products, activeProducts])
+  }, [activeProducts, rowsWithStock])
 
   const categoryStats = useMemo(() => {
     const seen = new Set<string>()

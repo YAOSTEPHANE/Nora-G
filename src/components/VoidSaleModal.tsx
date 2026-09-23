@@ -5,6 +5,7 @@ import { applySaleVoid } from '../lib/refundApply'
 import { saleFullyRefunded, saleNetTTC } from '../lib/refundMath'
 import { ManagerOverrideModal } from './ManagerOverrideModal'
 import { Button } from '../ui/Button'
+import { FormSection } from '../ui/Form'
 import { Field, Textarea } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 import { useToast } from '../ui/Toast'
@@ -129,25 +130,35 @@ export function VoidSaleModal({
   return (
     <Modal open onClose={onClose} title="Annuler la vente" size="md">
       <div className="space-y-3">
-        <p className="text-[13px] text-zinc-600">
-          Annulation (void) : restitution stock + remboursement intégral du
-          solde net ({formatFCFA(saleNetTTC(sale))}).
-          {requiresManager
-            ? ' Validation gérant requise (vente hors fenêtre récente).'
-            : ' Double confirmation requise.'}
+        <FormSection
+          title="Récapitulatif"
+          description={
+            requiresManager
+              ? 'Validation gérant requise (vente hors fenêtre récente). Double confirmation ensuite.'
+              : 'Restitution stock + remboursement intégral. Double confirmation requise.'
+          }
+          columns={1}
+        >
+        <p className="text-[12px] text-ink-muted">
+          Solde net à annuler :{' '}
+          <span className="font-mono-nums font-semibold text-ink">
+            {formatFCFA(saleNetTTC(sale))}
+          </span>
         </p>
-        <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 p-2 text-[12px]">
+        <ul className="max-h-40 space-y-1 overflow-y-auto rounded-[10px] border border-border/70 bg-caisse-ivory p-2 text-[12px]">
           {sale.lines.map((l) => (
             <li key={l.productId} className="flex justify-between gap-2">
-              <span className="truncate">
+              <span className="truncate text-ink">
                 {l.name} × {l.qty}
               </span>
-              <span className="font-mono-nums shrink-0">
+              <span className="font-mono-nums shrink-0 text-ink-muted">
                 {formatFCFA(Math.round(l.unitPriceTTC * l.qty))}
               </span>
             </li>
           ))}
         </ul>
+        </FormSection>
+        <FormSection title="Motif" columns={1}>
         <Field label="Motif" required>
           <Textarea
             value={reason}
@@ -156,6 +167,7 @@ export function VoidSaleModal({
             placeholder="Erreur encaissement, client, doublon…"
           />
         </Field>
+        </FormSection>
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="ghost" onClick={onClose}>
             Fermer

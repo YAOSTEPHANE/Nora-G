@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { db } from '../../db/db'
 import type { Product, ProductSerialUnit, SerialUnitStatus } from '../../db/types'
+import { useDomainProducts } from '../../hooks/useDomainProducts'
 import {
   syncStoreStockFromTracking,
   warrantyStatus,
@@ -79,12 +80,11 @@ async function pushStockSync(storeId: string, productId: string) {
 
 export function ProductSerialsPanel({ storeId, storeLabel }: Props) {
   const toast = useToast()
-  const products =
-    useLiveQuery(
-      () => db.products.filter((p) => !!p.trackSerialNumbers).toArray(),
-      [],
-      [],
-    ) ?? []
+  const { products: domainProducts } = useDomainProducts({ activeOnly: true })
+  const products = useMemo(
+    () => domainProducts.filter((p) => !!p.trackSerialNumbers),
+    [domainProducts],
+  )
   const units =
     useLiveQuery(
       () => db.productSerialUnits.where('storeId').equals(storeId).toArray(),

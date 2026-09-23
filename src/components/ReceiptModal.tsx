@@ -147,7 +147,9 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
       ? receiptDocumentLabel(
           ticketInvoice?.kind === 'facture' ? 'facture' : 'ticket',
         )
-      : receiptDocumentLabel('sale')
+      : sale.fne?.invoiceNumber
+        ? receiptDocumentLabel('fne')
+        : receiptDocumentLabel('sale')
 
   const printViaBrowser = useCallback(async () => {
     const printFrame = document.createElement('iframe')
@@ -415,6 +417,16 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
             {documentLabel}
           </p>
           <p className="mt-1.5 font-mono-nums text-[12px] text-zinc-500">{dtLabel}</p>
+          {sale.fne?.invoiceNumber ? (
+            <div className="mt-2 space-y-0.5 rounded-lg border border-[rgba(0,51,170,0.18)] bg-[#eef2fb] px-2 py-2 text-[11px] text-[#0033aa]">
+              <p className="font-semibold tracking-wide">
+                N° FNE · {sale.fne.invoiceNumber}
+              </p>
+              {sale.fne.nif ? (
+                <p className="text-[10px] text-zinc-600">NIF · {sale.fne.nif}</p>
+              ) : null}
+            </div>
+          ) : null}
           <p className="mt-1 font-mono-nums text-[10px] text-zinc-500">
             Session #{SESSION_ID}
           </p>
@@ -435,7 +447,7 @@ export function ReceiptModal({ source, autoPrint = false, onClose }: Props) {
                 </p>
               ) : null}
               <p className="text-zinc-600">
-                {order.fulfillmentMode === 'delivery' ? 'Livraison' : 'Retrait boutique'}
+                {order.fulfillmentMode === 'delivery' ? 'Livraison' : 'Click & collect'}
                 {' · '}
                 <span className="font-medium">{onlineOrderStatusLabel(order.status)}</span>
               </p>

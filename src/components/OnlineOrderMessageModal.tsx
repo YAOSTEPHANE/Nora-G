@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { OnlineOrder, OnlineOrderMessage } from '../db/types'
 import { Button } from '../ui/Button'
+import { FormSection } from '../ui/Form'
 import { Field, Textarea } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 
@@ -63,27 +64,32 @@ function OnlineOrderMessageModalContent({
       }
     >
       <div className="space-y-3">
-        <Field
-          label="Message client"
-          hint="Visible pour le client (SMS / WhatsApp / canal externe)"
-        >
-          <Textarea
-            rows={4}
-            value={customerMessage}
-            onChange={(e) => setCustomerMessage(e.target.value)}
-            placeholder="Ex. Bonjour, votre commande est en préparation et sera prête à 12h40."
-          />
-        </Field>
-        <Field label="Note interne équipe" hint="Visible uniquement par le staff">
-          <Textarea
-            rows={4}
-            value={internalMessage}
-            onChange={(e) => setInternalMessage(e.target.value)}
-            placeholder="Ex. Priorité élevée, client VIP, livrer sans piment."
-          />
-        </Field>
+        <FormSection title="Messages" columns={1}>
+          <Field
+            label="Message client"
+            hint="Visible pour le client (SMS / WhatsApp / canal externe)"
+          >
+            <Textarea
+              rows={4}
+              value={customerMessage}
+              onChange={(e) => setCustomerMessage(e.target.value)}
+              placeholder="Ex. Bonjour, votre commande est en préparation et sera prête à 12h40."
+            />
+          </Field>
+          <Field
+            label="Note interne équipe"
+            hint="Visible uniquement par le staff"
+          >
+            <Textarea
+              rows={4}
+              value={internalMessage}
+              onChange={(e) => setInternalMessage(e.target.value)}
+              placeholder="Ex. Priorité élevée, client VIP, livrer sans piment."
+            />
+          </Field>
+        </FormSection>
         {order.messageUpdatedAt ? (
-          <p className="rounded-md bg-zinc-50 px-2.5 py-2 text-[12px] text-zinc-600">
+          <p className="rounded-[10px] border border-border/60 bg-caisse-ivory px-2.5 py-2 text-[11px] text-ink-muted">
             Dernière mise à jour : {formatDateTime(order.messageUpdatedAt)}
             {order.messageUpdatedByDisplayName
               ? ` · ${order.messageUpdatedByDisplayName}`
@@ -91,17 +97,14 @@ function OnlineOrderMessageModalContent({
           </p>
         ) : null}
         {history.length > 0 ? (
-          <div className="space-y-2 rounded-md border border-zinc-200 bg-white p-2.5">
-            <p className="text-[12px] font-semibold text-zinc-700">
-              Historique des messages
-            </p>
+          <FormSection title="Historique" columns={1}>
             <ul className="space-y-1.5">
               {history.map((entry) => (
                 <li
                   key={entry.id}
-                  className="rounded-md border border-zinc-100 bg-zinc-50 px-2 py-1.5 text-[11px] text-zinc-700"
+                  className="rounded-[10px] border border-border/70 bg-white px-2.5 py-1.5 text-[11px] text-ink-muted"
                 >
-                  <p className="font-medium text-zinc-800">
+                  <p className="font-semibold text-ink">
                     {formatDateTime(entry.createdAt)} · {entry.authorDisplayName}
                   </p>
                   {entry.customerMessage ? (
@@ -119,7 +122,7 @@ function OnlineOrderMessageModalContent({
                 </li>
               ))}
             </ul>
-          </div>
+          </FormSection>
         ) : null}
       </div>
     </Modal>

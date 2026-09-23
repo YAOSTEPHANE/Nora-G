@@ -3,7 +3,8 @@ import { DEFAULT_STORE_ID } from '../db/seedStores'
 import type { Product, ProductCategory, ProductWithStock } from '../db/types'
 import { PRODUCT_CATEGORY_LIST } from '../db/types'
 import { downloadTextFile, toCsvSemicolon } from './analyticsExport'
-import { findProductByBarcode } from './productBarcode'
+import { findProductByBarcodeInDomain } from './productBarcode'
+import { getAppSettings } from './appSettings'
 import {
   normalizeProductDescription,
   normalizeProductHighlights,
@@ -261,6 +262,7 @@ function validateAndBuild(
     lowStockThreshold: lowTh,
     vatRatePct: Math.round(vatRatePct * 100) / 100,
     archived,
+    businessDomain: getAppSettings().businessDomain,
     ...(purchasePriceTTC !== undefined ? { purchasePriceTTC } : {}),
     ...(imageDataUrl ? { imageDataUrl } : {}),
     ...(imageUrl ? { imageUrl } : {}),
@@ -315,7 +317,7 @@ export async function applyProductsCsvImport(
   await db.transaction('rw', db.products, db.storeStocks, async () => {
     for (let i = 0; i < parsed.length; i++) {
       const { product: p, mainStoreStock } = parsed[i]
-      const existing = await findProductByBarcode(p.barcode)
+      const existing = await findProductByBarcodeInDomain(p.barcode)
       if (existing) {
         if (!options.updateExistingByBarcode) {
           errors.push({
@@ -332,6 +334,7 @@ export async function applyProductsCsvImport(
           lowStockThreshold: p.lowStockThreshold,
           vatRatePct: p.vatRatePct,
           archived: p.archived,
+          businessDomain: existing.businessDomain ?? getAppSettings().businessDomain,
         }
         if (p.imageUrl !== undefined) {
           merged.imageUrl = p.imageUrl

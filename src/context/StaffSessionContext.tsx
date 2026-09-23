@@ -18,6 +18,8 @@ import {
 } from '../auth/session'
 import type { StaffAuthMethod, StaffProfile } from '../auth/types'
 import { ensureSeed } from '../db/db'
+import { getAppSettings } from '../lib/appSettings'
+import { ensureDefaultProductFormSections } from '../lib/productFormSections'
 
 type StaffWithProfile = NonNullable<ReturnType<typeof getStaffSession>>
 
@@ -51,6 +53,9 @@ export function StaffSessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     void ensureSeed()
+      .then(async () => {
+        await ensureDefaultProductFormSections(getAppSettings().businessDomain)
+      })
       .then(() => {
         if (!cancelled) {
           setSeedError(null)

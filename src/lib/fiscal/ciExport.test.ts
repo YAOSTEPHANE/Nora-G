@@ -35,6 +35,27 @@ describe('buildFneExport', () => {
     expect(doc.invoices).toHaveLength(1)
     expect(doc.invoices[0]?.totalTTC).toBe(1000)
   })
+
+  it('réutilise le numéro FNE déjà émis à la vente', () => {
+    const withFne: Sale = {
+      ...sampleSale,
+      fne: {
+        invoiceNumber: 'FNE-20260801-00099',
+        issuedAt: sampleSale.createdAt,
+        nif: '1234567890',
+        regime: 'REEL',
+        status: 'issued',
+      },
+    }
+    const doc = buildFneExport({
+      sales: [withFne],
+      fromYmd: '2026-08-01',
+      toYmd: '2026-08-31',
+      issuerName: 'Boutique Test',
+      nif: '1234567890',
+    })
+    expect(doc.invoices[0]?.invoiceNumber).toBe('FNE-20260801-00099')
+  })
 })
 
 describe('buildFecCsv', () => {

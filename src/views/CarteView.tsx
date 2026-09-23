@@ -3,8 +3,8 @@ import { useMemo, useState } from 'react'
 import { useActiveStore } from '../context/ActiveStoreContext'
 import { db } from '../db/db'
 import type { ProductModifier } from '../db/types'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { formatFCFA } from '../lib/money'
-import { productIsActive } from '../lib/productFilters'
 import { saleLocalYmd } from '../lib/salesStats'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
@@ -26,8 +26,7 @@ export function CarteView({ canManage }: Props) {
   const { activeStoreId } = useActiveStore()
   const [tab, setTab] = useState<'menu' | 'options'>('menu')
   const today = saleLocalYmd(Date.now())
-  const products =
-    useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products: activeProducts } = useDomainProducts({ activeOnly: true })
   const menu =
     useLiveQuery(
       () =>
@@ -40,10 +39,6 @@ export function CarteView({ canManage }: Props) {
   const modifiers =
     useLiveQuery(() => db.productModifiers.toArray(), [], []) ?? []
 
-  const activeProducts = useMemo(
-    () => products.filter(productIsActive),
-    [products],
-  )
   const selectedIds = new Set(menu?.productIds ?? [])
 
   const [note, setNote] = useState('')
@@ -128,7 +123,7 @@ export function CarteView({ canManage }: Props) {
   }
 
   const productName = (id: string) =>
-    products.find((p) => p.id === id)?.name ?? 'Produit'
+    activeProducts.find((p) => p.id === id)?.name ?? 'Produit'
 
   return (
     <div className="module-page space-y-4">

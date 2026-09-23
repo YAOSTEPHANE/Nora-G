@@ -16,7 +16,7 @@ export function getReceiptBusinessName(): string {
 }
 
 export function receiptDocumentLabel(
-  kind: 'sale' | 'onlineOrder' | 'ticket' | 'facture',
+  kind: 'sale' | 'onlineOrder' | 'ticket' | 'facture' | 'fne',
 ): string {
   switch (kind) {
     case 'onlineOrder':
@@ -25,6 +25,8 @@ export function receiptDocumentLabel(
       return 'Facture'
     case 'ticket':
       return 'Ticket'
+    case 'fne':
+      return 'Facture Normalisée Électronique'
     case 'sale':
       return 'Ticket de caisse'
     default: {

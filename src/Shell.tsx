@@ -23,7 +23,7 @@ import { CaisseHeader } from './components/CaisseHeader'
 import { OfflineBanner } from './components/OfflineBanner'
 import { ReceiptModal } from './components/ReceiptModal'
 import { ProductGrid, type ProductGridDensity } from './components/ProductGrid'
-import { Topbar } from './components/Topbar'
+import { AppChromeHeader, Topbar } from './components/Topbar'
 import { DashboardNavGrid } from './components/DashboardNavGrid'
 import { useActiveStore } from './context/ActiveStoreContext'
 import { useSubscription } from './context/SubscriptionContext'
@@ -76,6 +76,8 @@ import {
   applyCustomerCreditSale,
   customerCreditAvailable,
 } from './lib/customerCredit'
+import { fetchFiscalSettings } from './lib/fiscal/api'
+import { issueFneForSale } from './lib/fiscal/fneInvoice'
 import {
   APP_SETTINGS_CHANGED_EVENT,
   getAppSettings,
@@ -396,6 +398,42 @@ export function Shell({ staff, online, onLogout }: Props) {
   const [, setAutoPrintReceiptAfterSale] = useState(
     () => getAppSettings().autoPrintReceiptAfterSale,
   )
+  const [fneEnabled, setFneEnabled] = useState(false)
+  const [fneNif, setFneNif] = useState<string | null>(null)
+  const [fneRegime, setFneRegime] = useState('REEL')
+
+  useEffect(() => {
+    let cancelled = false
+    const apply = (settings: {
+      fneEnabled?: boolean
+      taxId?: string | null
+      fiscalRegime?: string
+    }) => {
+      if (cancelled) return
+      setFneEnabled(Boolean(settings.fneEnabled))
+      setFneNif(settings.taxId ?? null)
+      setFneRegime(settings.fiscalRegime || 'REEL')
+    }
+    void fetchFiscalSettings().then((settings) => {
+      if (settings) apply(settings)
+    })
+    const onFiscal = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | {
+            fneEnabled?: boolean
+            taxId?: string | null
+            fiscalRegime?: string
+          }
+        | undefined
+      if (detail) apply(detail)
+    }
+    window.addEventListener('nora-fiscal-settings-changed', onFiscal)
+    return () => {
+      cancelled = true
+      window.removeEventListener('nora-fiscal-settings-changed', onFiscal)
+    }
+  }, [])
+
   const [cart, setCart] = useState<CartLine[]>([])
   const [discountPct, setDiscountPct] = useState(0)
   const [discountOverrideActive, setDiscountOverrideActive] = useState(false)
@@ -1355,6 +1393,12 @@ export function Shell({ staff, online, onLogout }: Props) {
           loyaltyDiscountTTC: loyaltyRedeemAmountTTC,
         }
 
+        const saleWithFne = await issueFneForSale(saleRecord, {
+          enabled: fneEnabled,
+          nif: fneNif,
+          regime: fneRegime,
+        })
+
         await db.transaction(
           'rw',
           [
@@ -1426,7 +1470,7 @@ export function Shell({ staff, online, onLogout }: Props) {
               recipeRows,
             )
 
-            await db.sales.add(saleRecord)
+            await db.sales.add(saleWithFne)
 
             if (payMethod === 'credit' && activeLoyaltyCustomer) {
               await applyCustomerCreditSale({
@@ -1563,7 +1607,7 @@ export function Shell({ staff, online, onLogout }: Props) {
               schemaVersion: 1,
               terminalId: getOrCreateTerminalId(),
               saleId,
-              sale: saleRecord,
+              sale: saleWithFne,
             }),
             createdAt: Date.now(),
           })
@@ -1572,7 +1616,7 @@ export function Shell({ staff, online, onLogout }: Props) {
 
       setReceiptOpen({
         type: 'sale',
-        sale: saleRecord,
+        sale: saleWithFne,
         // Impression dès validation dès que le module imprimantes tickets est actif.
         autoPrint: deviceConnectivity.receiptPrinters,
       })
@@ -1594,7 +1638,9 @@ export function Shell({ staff, online, onLogout }: Props) {
       setBarcodeInput('')
       setCheckoutPayment(defaultCheckoutPayment())
       toast.success(
-        'Vente enregistrée',
+        saleWithFne.fne?.invoiceNumber
+          ? `Vente · ${saleWithFne.fne.invoiceNumber}`
+          : 'Vente enregistrée',
         `${formatFCFA(totals.totalTTC)} encaissés`,
       )
       setPendingCashDrawerBypassUntil(0)
@@ -1635,6 +1681,9 @@ export function Shell({ staff, online, onLogout }: Props) {
       loyaltyPhoneInput,
       loyaltyRedeemAmountTTC,
       loyaltyRedeemPoints,
+      fneEnabled,
+      fneNif,
+      fneRegime,
     ],
   )
 
@@ -1753,12 +1802,17 @@ export function Shell({ staff, online, onLogout }: Props) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
         <Topbar
           view={activeView}
+          onOpenModules={() => handleSelectView('dash')}
+          navSections={navSections}
+          onSelectView={handleSelectView}
+        />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <AppChromeHeader
           online={online}
           syncLabel={syncLabel}
           syncBusy={syncBusy}
           onSyncNow={handleSyncNow}
           onLogout={handleLogoutClick}
-          onOpenModules={() => handleSelectView('dash')}
           stores={stores}
           activeStoreId={activeStoreId}
           onActiveStoreChange={setActiveStoreId}
@@ -1767,10 +1821,7 @@ export function Shell({ staff, online, onLogout }: Props) {
           onProductGridDensityChange={
             isCaisse ? setProductGridDensity : undefined
           }
-          navSections={navSections}
-          onSelectView={handleSelectView}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {!online ? <OfflineBanner /> : null}
 
         {isCaisse ? (

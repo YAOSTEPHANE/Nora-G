@@ -18,6 +18,7 @@ import { EmptyState } from '../ui/EmptyState'
 import { Field, Input, Select } from '../ui/Input'
 import { Kpi } from '../ui/Kpi'
 import { PageHeader, SectionHeader } from '../ui/PageHeader'
+import { Switch } from '../ui/Switch'
 import { Table, TBody, Td, Th, THead, Tr } from '../ui/Table'
 import { MobileDataCard, ResponsiveData } from '../ui/ResponsiveData'
 import { useToast } from '../ui/Toast'
@@ -60,6 +61,7 @@ export function ComptabiliteView({ canManageCompta }: Props) {
   const [storeFilter, setStoreFilter] = useState<string>('all')
   const [taxId, setTaxId] = useState('')
   const [fiscalRegime, setFiscalRegime] = useState('REEL')
+  const [fneEnabled, setFneEnabled] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -67,6 +69,7 @@ export function ComptabiliteView({ canManageCompta }: Props) {
       if (cancelled || !settings) return
       setTaxId(settings.taxId ?? '')
       setFiscalRegime(settings.fiscalRegime || 'REEL')
+      setFneEnabled(Boolean(settings.fneEnabled))
     })
     return () => {
       cancelled = true
@@ -108,6 +111,7 @@ export function ComptabiliteView({ canManageCompta }: Props) {
       bank += Math.round((p.card + p.mobile) * ratio)
     }
     const refundsTTC = Math.max(0, grossTTC - netTTC)
+    const fneCount = filteredSales.filter((s) => s.fne?.invoiceNumber).length
     return {
       tickets: filteredSales.length,
       netTTC,
@@ -116,6 +120,7 @@ export function ComptabiliteView({ canManageCompta }: Props) {
       cash,
       bank,
       refundsTTC,
+      fneCount,
     }
   }, [filteredSales])
 
@@ -192,14 +197,16 @@ export function ComptabiliteView({ canManageCompta }: Props) {
       const updated = await updateFiscalSettings({
         taxId: taxId.trim() || null,
         fiscalRegime,
+        fneEnabled,
       })
       setTaxId(updated.taxId ?? '')
       setFiscalRegime(updated.fiscalRegime || 'REEL')
+      setFneEnabled(Boolean(updated.fneEnabled))
       toast.success('Paramètres fiscaux enregistrés')
     } catch {
       toast.error('Impossible d’enregistrer les paramètres fiscaux')
     }
-  }, [taxId, fiscalRegime, toast])
+  }, [taxId, fiscalRegime, fneEnabled, toast])
 
   return (
     <div className="module-page">
@@ -207,7 +214,7 @@ export function ComptabiliteView({ canManageCompta }: Props) {
         icon={<IconSpreadsheet />}
         eyebrow="Finance"
         title="Compta"
-        subtitle="Ventilation HT/TVA, synthèse des écritures et export comptable"
+        subtitle="Ventilation HT/TVA, FNE à l’encaissement et export comptable"
         actions={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <Button
@@ -277,6 +284,14 @@ export function ComptabiliteView({ canManageCompta }: Props) {
                     <option value="FORFAIT">Forfait</option>
                   </Select>
                 </Field>
+                <div className="md:col-span-3">
+                  <Switch
+                    checked={fneEnabled}
+                    onChange={(e) => setFneEnabled(e.target.checked)}
+                    label="Conformité FNE"
+                    description="Chaque vente génère une Facture Normalisée Électronique à partir du ticket (sans double saisie)."
+                  />
+                </div>
                 <div className="flex items-end md:col-span-3">
                   <Button
                     variant="secondary"
@@ -293,11 +308,16 @@ export function ComptabiliteView({ canManageCompta }: Props) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi label="CA net TTC" value={formatFCFA(metrics.netTTC)} tone="accent" />
         <Kpi label="Base HT" value={formatFCFA(metrics.ht)} tone="neutral" />
         <Kpi label="TVA collectée" value={formatFCFA(metrics.tva)} tone="violet" />
         <Kpi label="Remboursements TTC" value={formatFCFA(metrics.refundsTTC)} tone="amber" />
+        <Kpi
+          label="FNE émises"
+          value={String(metrics.fneCount)}
+          tone={fneEnabled ? 'accent' : 'neutral'}
+        />
       </div>
 
       <Card className="rounded-2xl bg-[linear-gradient(165deg,rgba(255,255,255,0.98),rgba(246,250,255,0.94))]">

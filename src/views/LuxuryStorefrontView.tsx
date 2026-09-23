@@ -553,7 +553,7 @@ export function LuxuryStorefrontView({
     freeDeliveryThresholdTTC > 0 && freeDeliveryRemaining <= 0
   const showFreeDeliveryProgress = freeDeliveryThresholdTTC > 0
   const estimatedWindow =
-    fulfillmentMode === 'delivery' ? 'Livraison 45-90 min' : 'Retrait 15-30 min'
+    fulfillmentMode === 'delivery' ? 'Livraison 45-90 min' : 'Click & collect 15-30 min'
   const productById = useMemo(
     () => new Map(displayProducts.map((p) => [p.id, p])),
     [displayProducts],
@@ -1301,7 +1301,7 @@ export function LuxuryStorefrontView({
                   aria-label="Mode de réception"
                   className="storefront-input w-full rounded-xl px-3 py-2 text-sm"
                 >
-                  <option value="pickup">Retrait boutique</option>
+                  <option value="pickup">Click & collect</option>
                   <option value="delivery">
                     {deliveryZones.length > 0
                       ? 'Livraison locale'

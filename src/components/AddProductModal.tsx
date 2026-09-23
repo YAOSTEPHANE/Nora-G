@@ -10,9 +10,17 @@ import {
   normalizeProductDescription,
   normalizeProductHighlights,
 } from '../lib/productDescription'
+import {
+  ensureDefaultProductFormSections,
+  listProductFormSections,
+  mergeCustomFieldValues,
+  sanitizeCustomFieldsForSave,
+  validateCustomFields,
+} from '../lib/productFormSections'
 import { resolveProductImageFields } from '../lib/uploads/blob'
+import { ProductCustomFormSections } from './ProductCustomFormSections'
 import { Button } from '../ui/Button'
-import { FormChip, FormSection, FormSwitchRow } from '../ui/Form'
+import { FormAlert, FormChip, FormSection, FormSwitchRow } from '../ui/Form'
 import { Field, Input, Select, Textarea } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 import { Switch } from '../ui/Switch'
@@ -80,6 +88,23 @@ export function AddProductModal({
   const [supplierRef, setSupplierRef] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [customFields, setCustomFields] = useState<
+    Record<string, string | number | boolean | null>
+  >({})
+
+  const formSections =
+    useLiveQuery(
+      async () => {
+        await ensureDefaultProductFormSections(activeDomain)
+        return listProductFormSections(activeDomain)
+      },
+      [activeDomain],
+      [],
+    ) ?? []
+
+  useEffect(() => {
+    setCustomFields(mergeCustomFieldValues(formSections, null))
+  }, [formSections])
 
   useEffect(() => {
     if (categoryOptions.length === 0) return
@@ -137,12 +162,15 @@ export function AddProductModal({
     const vat = Number.parseFloat(vatRatePct.replace(',', '.'))
     if (!Number.isFinite(vat) || vat < 0 || vat > 100)
       return setErr('TVA invalide (0–100).')
+    const customErr = validateCustomFields(formSections, customFields)
+    if (customErr) return setErr(customErr)
     const productId = crypto.randomUUID()
     setBusy(true)
     try {
       const imageFields = await resolveProductImageFields(productId, imageDataUrl)
       const desc = normalizeProductDescription(description)
       const highlights = normalizeProductHighlights(highlightsText)
+      const custom = sanitizeCustomFieldsForSave(formSections, customFields)
       const product: Product = {
         id: productId,
         name: name.trim(),
@@ -167,6 +195,7 @@ export function AddProductModal({
         ...(purchase !== undefined ? { purchasePriceTTC: purchase } : {}),
         ...(desc ? { description: desc } : {}),
         ...(highlights ? { highlights } : {}),
+        ...(custom ? { customFields: custom } : {}),
         ...imageFields,
       }
       await onSave(product, stockManagedByTracking ? 0 : st)
@@ -204,7 +233,7 @@ export function AddProductModal({
         </>
       }
     >
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="ui-form">
         <FormSection
           title="Identité"
           description="Nom, code et classification dans le catalogue."
@@ -455,6 +484,13 @@ export function AddProductModal({
             </Field>
           </FormSection>
         ) : null}
+        <ProductCustomFormSections
+          sections={formSections}
+          values={customFields}
+          onChange={(key, value) =>
+            setCustomFields((prev) => ({ ...prev, [key]: value }))
+          }
+        />
         <FormSection
           title="Stock"
           description="Quantité initiale et seuil d’alerte magasin."
@@ -488,11 +524,7 @@ export function AddProductModal({
             />
           </Field>
         </FormSection>
-        {err ? (
-          <p className="mt-4 rounded-2xl bg-rose-50 px-3.5 py-2.5 text-[12px] font-medium text-rose-700">
-            {err}
-          </p>
-        ) : null}
+        {err ? <FormAlert>{err}</FormAlert> : null}
       </form>
     </Modal>
   )

@@ -79,6 +79,7 @@ import type {
   CompoundingOrder,
   ProductVariant,
   VariantStoreStock,
+  ProductFormSection,
 } from './types'
 import { DEFAULT_PRODUCT_CATEGORIES } from './types'
 
@@ -123,11 +124,14 @@ function databaseNameForCurrentOrganization(): string {
   }
 }
 import type { BusinessDomain } from '../lib/businessDomain'
+import { featuresForDomain } from '../lib/businessDomain'
 import { getAppSettings } from '../lib/appSettings'
 import {
   categoriesForDomain,
   inferDomainFromCategory,
+  productBelongsToDomain,
   sampleProductsForDomain,
+  suggestedInitialStockForProduct,
 } from '../lib/domainCatalog'
 import {
   DEMO_KITCHEN_INGREDIENT_IDS,
@@ -238,6 +242,7 @@ export class NoraDB extends Dexie {
   compoundingOrders!: Table<CompoundingOrder, string>
   productVariants!: Table<ProductVariant, string>
   variantStoreStocks!: Table<VariantStoreStock, string>
+  productFormSections!: Table<ProductFormSection, string>
 
   constructor() {
     super(databaseNameForCurrentOrganization())
@@ -942,6 +947,10 @@ export class NoraDB extends Dexie {
       marketingCampaigns:
         'id, storeId, status, promoCode, createdAt, startedAt, [storeId+createdAt], [storeId+status]',
     })
+    this.version(34).stores({
+      productFormSections:
+        'id, domain, active, sortOrder, [domain+active], [domain+sortOrder]',
+    })
   }
 }
 
@@ -1126,24 +1135,121 @@ export async function migrateProductBusinessDomains(): Promise<void> {
 }
 
 /**
- * Si le domaine n’a aucun produit, propose un mini catalogue d’exemples.
+ * Si le domaine n’a aucun produit, propose un mini catalogue d’exemples
+ * avec un stock initial cohérent (magasin + emplacements).
  * Ne touche pas aux autres domaines.
  */
 export async function ensureDomainSampleProductsIfEmpty(
   domain: BusinessDomain,
 ): Promise<number> {
   await ensureDomainProductCategories(domain)
+  await ensureStockLocationsSeed()
   const products = await db.products.toArray()
-  const existing = products.filter((p) => p.businessDomain === domain)
+  const existing = products.filter((p) => productBelongsToDomain(p, domain))
   if (existing.length > 0) return 0
   const samples = sampleProductsForDomain(domain)
   let added = 0
   for (const sample of samples) {
     const id = crypto.randomUUID()
-    await db.products.add({ ...sample, id })
+    await db.products.add({ ...sample, id, businessDomain: domain })
+    await putInitialStockForProduct(
+      id,
+      suggestedInitialStockForProduct(sample),
+    )
     added += 1
   }
   return added
+}
+
+/**
+ * Écrit un stock initial sur tous les magasins / emplacements
+ * uniquement si la cellule n’existe pas encore (ne réécrit pas un stock réel).
+ */
+async function putInitialStockForProduct(
+  productId: string,
+  qty: number,
+  options?: { overwrite?: boolean },
+): Promise<void> {
+  const overwrite = options?.overwrite === true
+  const stores = await db.stores.toArray()
+  const stockBatch: StoreStock[] = []
+  const locationBatch: LocationStock[] = []
+
+  for (const store of stores) {
+    const rid = storeStockRowId(store.id, productId)
+    const existingStock = await db.storeStocks.get(rid)
+    const storeQty =
+      store.kind === 'warehouse' ? Math.max(qty * 4, qty) : qty
+    if (!existingStock || overwrite) {
+      stockBatch.push({
+        id: rid,
+        storeId: store.id,
+        productId,
+        stock: storeQty,
+      })
+    }
+
+    const locations = await db.stockLocations
+      .where('storeId')
+      .equals(store.id)
+      .toArray()
+    const effectiveStoreQty = existingStock && !overwrite
+      ? existingStock.stock
+      : storeQty
+    for (const loc of locations) {
+      const lid = locationStockRowId(store.id, loc.id, productId)
+      const locExisting = await db.locationStocks.get(lid)
+      if (locExisting && !overwrite) continue
+      const isReserve =
+        loc.code === 'RES' || /r[eé]serve/i.test(loc.name)
+      locationBatch.push({
+        id: lid,
+        storeId: store.id,
+        locationId: loc.id,
+        productId,
+        stock: isReserve ? effectiveStoreQty : 0,
+      })
+    }
+  }
+
+  if (stockBatch.length > 0) await db.storeStocks.bulkPut(stockBatch)
+  if (locationBatch.length > 0) await db.locationStocks.bulkPut(locationBatch)
+}
+
+/**
+ * Si l’activité a un catalogue mais tout le stock magasin principal est à 0,
+ * initialise des quantités d’exemple (évite un stock « resto » vide en pharma, etc.).
+ * Ne touche pas aux activités qui ont déjà au moins un article en stock.
+ */
+export async function ensureDomainStocksConcordant(
+  domain: BusinessDomain,
+): Promise<number> {
+  await ensureStockLocationsSeed()
+  const domainProducts = (await db.products.toArray()).filter(
+    (p) => productBelongsToDomain(p, domain) && !p.archived,
+  )
+  if (domainProducts.length === 0) return 0
+
+  let anyPositive = false
+  for (const p of domainProducts) {
+    const row = await db.storeStocks.get(
+      storeStockRowId(DEFAULT_STORE_ID, p.id),
+    )
+    if ((row?.stock ?? 0) > 0) {
+      anyPositive = true
+      break
+    }
+  }
+  if (anyPositive) return 0
+
+  let updated = 0
+  for (const p of domainProducts) {
+    const qty = suggestedInitialStockForProduct(p)
+    if (qty <= 0) continue
+    await putInitialStockForProduct(p.id, qty, { overwrite: true })
+    updated += 1
+  }
+  return updated
 }
 
 /** Ajoute les catégories du pack domaine (compat appelants historiques). */
@@ -1264,6 +1370,7 @@ export async function wipeLocalBusinessData(): Promise<void> {
     db.compoundingOrders.clear(),
     db.productVariants.clear(),
     db.variantStoreStocks.clear(),
+    db.productFormSections.clear(),
   ])
   // Magasins : on garde la structure minimale via ensureStores ensuite.
   const stores = await db.stores.toArray()
@@ -1452,12 +1559,15 @@ export async function loadTestData(): Promise<void> {
   await migrateProductBusinessDomains()
   const domain = getAppSettings().businessDomain
   await ensureDomainProductCategories(domain)
-  await ensureDomainSampleProductsIfEmpty(domain)
-  await ensureAllStoreStockRows()
   await ensureStockLocationsSeed()
+  await ensureDomainSampleProductsIfEmpty(domain)
+  await ensureDomainStocksConcordant(domain)
+  await ensureAllStoreStockRows()
   await ensureAllLocationStockRows()
   await syncProductCategoriesFromProducts()
-  await ensureKitchenIngredientStocksForAllStores()
+  if (featuresForDomain(domain).kitchen) {
+    await ensureKitchenIngredientStocksForAllStores()
+  }
 }
 
 /** Alias historique — charge les données test (catalogue + cuisine). */
@@ -1468,10 +1578,31 @@ export async function loadKitchenStockDemo(): Promise<boolean> {
 
 async function injectTestCatalog(): Promise<void> {
   await db.stores.bulkPut(SEED_STORES)
-  await db.products.bulkPut(SEED_PRODUCTS)
+  const domain = getAppSettings().businessDomain
+  // Ne charger que les articles de l’activité courante (isolation des catalogues).
+  const seeds = SEED_PRODUCTS.filter((p) => p.businessDomain === domain)
+  if (seeds.length > 0) {
+    await db.products.bulkPut(seeds)
+  } else {
+    // Domaine sans seed dédié : laisser ensureDomainSampleProductsIfEmpty gérer.
+    const retailSeeds = SEED_PRODUCTS.filter((p) => p.businessDomain === 'retail')
+    if (domain === 'retail' && retailSeeds.length > 0) {
+      await db.products.bulkPut(retailSeeds)
+    }
+  }
+
+  const seededIds = new Set(
+    (seeds.length > 0
+      ? seeds
+      : domain === 'retail'
+        ? SEED_PRODUCTS.filter((p) => p.businessDomain === 'retail')
+        : []
+    ).map((p) => p.id),
+  )
 
   const stockRows: StoreStock[] = []
   for (const [productId, stock] of Object.entries(SEED_INITIAL_STOCK_MAIN)) {
+    if (!seededIds.has(productId)) continue
     stockRows.push({
       id: storeStockRowId(DEFAULT_STORE_ID, productId),
       storeId: DEFAULT_STORE_ID,
@@ -1480,6 +1611,7 @@ async function injectTestCatalog(): Promise<void> {
     })
   }
   for (const [productId, stock] of Object.entries(SEED_INITIAL_STOCK_ANNEX)) {
+    if (!seededIds.has(productId)) continue
     stockRows.push({
       id: storeStockRowId(TEST_STORE_ANNEX_ID, productId),
       storeId: TEST_STORE_ANNEX_ID,
@@ -1488,6 +1620,7 @@ async function injectTestCatalog(): Promise<void> {
     })
   }
   for (const [productId, stock] of Object.entries(SEED_INITIAL_STOCK_WAREHOUSE)) {
+    if (!seededIds.has(productId)) continue
     stockRows.push({
       id: storeStockRowId(CENTRAL_WAREHOUSE_ID, productId),
       storeId: CENTRAL_WAREHOUSE_ID,
@@ -1499,22 +1632,25 @@ async function injectTestCatalog(): Promise<void> {
     await db.storeStocks.bulkPut(stockRows)
   }
 
-  await db.kitchenIngredients.bulkPut(SEED_KITCHEN_INGREDIENTS)
-  const kitchenRows: KitchenIngredientStock[] = []
-  for (const [ingredientId, stock] of Object.entries(SEED_KITCHEN_STOCK_MAIN)) {
-    kitchenRows.push({
-      id: kitchenIngredientStockRowId(DEFAULT_STORE_ID, ingredientId),
-      storeId: DEFAULT_STORE_ID,
-      ingredientId,
-      stock,
-    })
-  }
-  if (kitchenRows.length > 0) {
-    await db.kitchenIngredientStocks.bulkPut(kitchenRows)
+  // Cuisine / recettes / tables : uniquement pour les activités qui les utilisent.
+  if (featuresForDomain(domain).kitchen) {
+    await db.kitchenIngredients.bulkPut(SEED_KITCHEN_INGREDIENTS)
+    const kitchenRows: KitchenIngredientStock[] = []
+    for (const [ingredientId, stock] of Object.entries(SEED_KITCHEN_STOCK_MAIN)) {
+      kitchenRows.push({
+        id: kitchenIngredientStockRowId(DEFAULT_STORE_ID, ingredientId),
+        storeId: DEFAULT_STORE_ID,
+        ingredientId,
+        stock,
+      })
+    }
+    if (kitchenRows.length > 0) {
+      await db.kitchenIngredientStocks.bulkPut(kitchenRows)
+    }
+    await db.productRecipeIngredients.bulkPut(SEED_RECIPES)
+    await db.diningTables.bulkPut(buildSeedDiningTables(DEFAULT_STORE_ID))
   }
 
-  await db.productRecipeIngredients.bulkPut(SEED_RECIPES)
-  await db.diningTables.bulkPut(buildSeedDiningTables(DEFAULT_STORE_ID))
   await db.promotions.bulkPut(buildSeedPromotions())
   await db.loyaltyCustomers.bulkPut(SEED_LOYALTY_CUSTOMERS)
   await db.suppliers.bulkPut(SEED_SUPPLIERS)
@@ -1618,9 +1754,10 @@ export async function ensureSeed(): Promise<void> {
   await migrateProductBusinessDomains()
   const domain = getAppSettings().businessDomain
   await ensureDomainProductCategories(domain)
-  await ensureDomainSampleProductsIfEmpty(domain)
-  await ensureAllStoreStockRows()
   await ensureStockLocationsSeed()
+  await ensureDomainSampleProductsIfEmpty(domain)
+  await ensureDomainStocksConcordant(domain)
+  await ensureAllStoreStockRows()
   await ensureAllLocationStockRows()
   await syncProductCategoriesFromProducts()
   await ensureKitchenStockSeed()

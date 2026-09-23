@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { RefundSaleModal } from '../components/RefundSaleModal'
 import { ExchangeSaleModal } from '../components/ExchangeSaleModal'
@@ -216,7 +217,7 @@ export function JournalReportView({
     getAppSettings().businessDomain,
   ).prescription
   const sales = useLiveQuery(() => db.sales.toArray(), [], []) ?? []
-  const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products } = useDomainProducts()
   const priceHistory =
     useLiveQuery(() => db.purchasePriceHistory.toArray(), [], []) ?? []
   const allCashOutflows =

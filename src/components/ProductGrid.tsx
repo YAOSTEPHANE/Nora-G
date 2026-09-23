@@ -169,6 +169,7 @@ export function ProductGrid({
       ) : (
         <div
           className={cn(
+            'items-start',
             isCompact
               ? 'grid gap-2 grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 xl:grid-cols-10'
               : 'grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10',
@@ -179,13 +180,13 @@ export function ProductGrid({
             const disabled = state === 'rupture'
             const isFav = favoriteIds.includes(p.id)
             return (
-              <div key={p.id} className="relative">
+              <div key={p.id} className="relative min-w-0 w-full">
                 <button
                   type="button"
                   disabled={disabled}
                   onClick={(e) => onAdd(p, e.currentTarget)}
                   className={cn(
-                    'caisse-product-card caisse-product-card--tile group flex min-w-0 flex-col text-left disabled:cursor-not-allowed disabled:opacity-45',
+                    'caisse-product-card caisse-product-card--tile group flex w-full min-w-0 flex-col text-left disabled:cursor-not-allowed disabled:opacity-45',
                     isCompact && 'caisse-product-card--compact',
                   )}
                 >
@@ -257,7 +258,7 @@ export function ProductGrid({
                 <button
                   type="button"
                   className={cn(
-                    'absolute right-1 top-1 z-10 rounded-full bg-white/90 p-1 shadow-sm',
+                    'absolute right-1.5 top-1.5 z-10 rounded-full bg-white/90 p-1 shadow-sm',
                     isFav
                       ? 'text-caisse-gold'
                       : 'text-zinc-400 hover:text-caisse-gold',

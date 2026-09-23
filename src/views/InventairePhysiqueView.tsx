@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { useMemo, useState } from 'react'
 import { useActiveStore } from '../context/ActiveStoreContext'
 import { db } from '../db/db'
@@ -50,7 +51,7 @@ function statusLabel(s: InventorySessionStatus): string {
 export function InventairePhysiqueView({ canManage, actor }: Props) {
   const toast = useToast()
   const { activeStoreId, activeStore } = useActiveStore()
-  const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products } = useDomainProducts()
   const sessions =
     useLiveQuery(
       () =>
@@ -135,7 +136,7 @@ export function InventairePhysiqueView({ canManage, actor }: Props) {
     if (!canManage) return
     setBusy(true)
     try {
-      const active = (await db.products.toArray()).filter(productIsActive)
+      const active = products.filter(productIsActive)
       const stocks = await db.storeStocks
         .where('storeId')
         .equals(activeStoreId)

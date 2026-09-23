@@ -214,6 +214,114 @@ export type ViewAccent = {
   chip: string
 }
 
+/** Couleurs rail admin (hex) — indépendantes de Tailwind pour éviter le conflit avec `.rail-btn`. */
+export type ViewRailColor = {
+  fg: string
+  bg: string
+  fgOn: string
+  bgOn: string
+}
+
+function railColor(
+  fg: string,
+  bg: string,
+  fgOn: string,
+  bgOn: string,
+): ViewRailColor {
+  return { fg, bg, fgOn, bgOn }
+}
+
+const RC = {
+  brand: railColor('#0033aa', '#e8eefa', '#00257a', '#d6e0f6'),
+  indigo: railColor('#4f46e5', '#eef2ff', '#4338ca', '#e0e7ff'),
+  amber: railColor('#d97706', '#fffbeb', '#b45309', '#fef3c7'),
+  violet: railColor('#7c3aed', '#f5f3ff', '#6d28d9', '#ede9fe'),
+  fuchsia: railColor('#c026d3', '#fdf4ff', '#a21caf', '#fae8ff'),
+  cyan: railColor('#0891b2', '#ecfeff', '#0e7490', '#cffafe'),
+  teal: railColor('#0d9488', '#f0fdfa', '#0f766e', '#ccfbf1'),
+  emerald: railColor('#059669', '#ecfdf5', '#047857', '#d1fae5'),
+  orange: railColor('#ea580c', '#fff7ed', '#c2410c', '#ffedd5'),
+  rose: railColor('#e11d48', '#fff1f2', '#be123c', '#ffe4e6'),
+  yellow: railColor('#ca8a04', '#fefce8', '#a16207', '#fef9c3'),
+  red: railColor('#dc2626', '#fef2f2', '#b91c1c', '#fee2e2'),
+  blue: railColor('#2563eb', '#eff6ff', '#1d4ed8', '#dbeafe'),
+  pink: railColor('#db2777', '#fdf2f8', '#be185d', '#fce7f3'),
+  lime: railColor('#65a30d', '#f7fee7', '#4d7c0f', '#ecfccb'),
+  purple: railColor('#9333ea', '#faf5ff', '#7e22ce', '#f3e8ff'),
+  slate: railColor('#475569', '#f8fafc', '#1e293b', '#e2e8f0'),
+  green: railColor('#16a34a', '#f0fdf4', '#15803d', '#dcfce7'),
+  sky: railColor('#0284c7', '#f0f9ff', '#0369a1', '#e0f2fe'),
+  stone: railColor('#57534e', '#fafaf9', '#44403c', '#f5f5f4'),
+  yellowDeep: railColor('#a16207', '#fefce8', '#854d0e', '#fef9c3'),
+  amberDeep: railColor('#b45309', '#fffbeb', '#92400e', '#fef3c7'),
+  limeDeep: railColor('#4d7c0f', '#f7fee7', '#3f6212', '#ecfccb'),
+  redDeep: railColor('#991b1b', '#fef2f2', '#7f1d1d', '#fee2e2'),
+  cyanDeep: railColor('#0e7490', '#ecfeff', '#155e75', '#cffafe'),
+} as const
+
+export const VIEW_RAIL_COLORS: Record<NavViewId, ViewRailColor> = {
+  dash: RC.brand,
+  caisse: RC.brand,
+  catalogue: RC.indigo,
+  stocks: RC.amber,
+  comptabilite: RC.violet,
+  rh: RC.fuchsia,
+  crm: RC.cyan,
+  segmentation: RC.teal,
+  whatsapp: RC.emerald,
+  marketing: RC.fuchsia,
+  tables: RC.orange,
+  promotions: RC.rose,
+  loyalty: RC.yellow,
+  kitchen: RC.red,
+  ticketsFactures: RC.teal,
+  onlineOrders: RC.blue,
+  journal: RC.teal,
+  personnel: RC.pink,
+  vendeuses: RC.rose,
+  pointage: RC.lime,
+  analytique: RC.purple,
+  rentabilite: RC.fuchsia,
+  reporting: RC.indigo,
+  controleInterne: RC.slate,
+  evolutivite: RC.violet,
+  integrations: RC.cyan,
+  parametres: RC.slate,
+  network: RC.green,
+  achats: RC.orange,
+  devis: RC.sky,
+  sav: RC.emerald,
+  credits: RC.amber,
+  inventairePhysique: RC.slate,
+  peremptions: RC.rose,
+  livraisons: RC.cyan,
+  location: RC.teal,
+  carte: RC.fuchsia,
+  cadeaux: RC.pink,
+  rdv: RC.violet,
+  tarifs: RC.blue,
+  retoursFournisseur: RC.red,
+  production: RC.yellowDeep,
+  bl: RC.indigo,
+  depenses: RC.stone,
+  retoursClient: RC.orange,
+  consignes: RC.emerald,
+  ordonnances: RC.sky,
+  chantiers: RC.amberDeep,
+  abonnements: RC.violet,
+  haccp: RC.limeDeep,
+  vip: RC.yellowDeep,
+  commissions: RC.emerald,
+  misesDeCote: RC.indigo,
+  pertes: RC.rose,
+  allergenes: RC.orange,
+  evenements: RC.fuchsia,
+  reprises: RC.sky,
+  protocoles: RC.pink,
+  cave: RC.redDeep,
+  magistrales: RC.cyanDeep,
+}
+
 export const VIEW_ACCENTS: Record<NavViewId, ViewAccent> = {
   dash: {
     icon: 'text-[#0033aa] bg-[#e8eefa]',

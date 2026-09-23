@@ -24,13 +24,13 @@ export function FormPanel({
           {eyebrow ? <p className="ui-eyebrow">{eyebrow}</p> : null}
           {title ? <h3 className="ui-form-panel-title">{title}</h3> : null}
           {description ? (
-            <p className="ui-muted mt-1 max-w-2xl text-[13px] leading-relaxed">
+            <p className="ui-muted mt-1 max-w-2xl text-[12px] leading-relaxed">
               {description}
             </p>
           ) : null}
         </div>
       ) : null}
-      <CardContent className="ui-form-panel-body">{children}</CardContent>
+      <CardContent className="ui-form-panel-body ui-form">{children}</CardContent>
       {actions ? <div className="ui-form-panel-foot">{actions}</div> : null}
     </Card>
   )
@@ -116,15 +116,50 @@ export function FormChip({
 
 export function FormSwitchRow({
   label,
+  hint,
   children,
 }: {
   label: ReactNode
+  hint?: ReactNode
   children: ReactNode
 }) {
   return (
-    <label className="ui-form-switch-row">
-      <span>{label}</span>
+    <div className="ui-form-switch-row">
+      {hint ? (
+        <span className="ui-form-switch-row-text">
+          <span>{label}</span>
+          <span>{hint}</span>
+        </span>
+      ) : (
+        <span>{label}</span>
+      )}
       {children}
-    </label>
+    </div>
   )
+}
+
+/** Bannière d’erreur globale en bas / haut d’un formulaire. */
+export function FormAlert({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  if (!children) return null
+  return (
+    <div role="alert" className={cn('ui-form-alert', className)}>
+      <span>{children}</span>
+    </div>
+  )
+}
+
+export function FormActions({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return <div className={cn('ui-form-actions', className)}>{children}</div>
 }

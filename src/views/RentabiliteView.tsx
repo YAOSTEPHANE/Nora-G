@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { useMemo, useState } from 'react'
 import { db } from '../db/db'
 import { downloadTextFile, toCsvSemicolon } from '../lib/analyticsExport'
@@ -51,7 +52,7 @@ function coverageHint(row: ProfitabilityRow | { linesWithCost: number; linesWith
 
 export function RentabiliteView() {
   const sales = useLiveQuery(() => db.sales.toArray(), [], []) ?? []
-  const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products } = useDomainProducts()
   const stores =
     useLiveQuery(() => db.stores.orderBy('sortOrder').toArray(), [], []) ?? []
   const history =

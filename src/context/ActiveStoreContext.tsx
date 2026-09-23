@@ -19,6 +19,10 @@ import {
 import type { BusinessDomain } from '../lib/businessDomain'
 import { productBelongsToDomain } from '../lib/domainCatalog'
 import { productIsActive } from '../lib/productFilters'
+import {
+  applyOmnichannelReservations,
+  reservedQtyByProduct,
+} from '../lib/omnichannel/stock'
 
 const STORAGE_KEY = 'nora-active-store-id'
 
@@ -104,15 +108,28 @@ export function ActiveStoreProvider({
     [stockRows],
   )
 
+  const pendingOrders =
+    useLiveQuery(
+      () => db.onlineOrders.where('status').equals('pending').toArray(),
+      [],
+      [],
+    ) ?? []
+
+  const reservedByProduct = useMemo(
+    () => reservedQtyByProduct(pendingOrders, activeStoreId),
+    [pendingOrders, activeStoreId],
+  )
+
   const displayProducts = useMemo((): ProductWithStock[] => {
-    return products
+    const withPhysical = products
       .filter(productIsActive)
       .filter((p) => productBelongsToDomain(p, businessDomain))
       .map((p) => ({
         ...p,
         stock: stockByProduct.get(p.id) ?? 0,
       }))
-  }, [products, stockByProduct, businessDomain])
+    return applyOmnichannelReservations(withPhysical, reservedByProduct)
+  }, [products, stockByProduct, businessDomain, reservedByProduct])
 
   const setActiveStoreId = useCallback((id: string) => {
     setActiveStoreIdState(id)

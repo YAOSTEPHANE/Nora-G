@@ -59,11 +59,13 @@ export function Modal({
   const chrome = (
     <>
       {(title || subtitle) ? (
-        <div className="flex items-start justify-between gap-3 border-b border-[rgba(0,51,170,0.1)] bg-[linear-gradient(180deg,#f7f8fc,transparent)] px-4 py-3.5 sm:px-6 sm:py-5">
+        <div className="flex items-start justify-between gap-3 border-b border-[rgba(0,51,170,0.08)] bg-caisse-ivory px-4 py-3 sm:px-5 sm:py-3.5">
           <div className="min-w-0">
-            {title ? <h2 className="ui-h2 truncate text-base sm:text-lg">{title}</h2> : null}
+            {title ? (
+              <h2 className="ui-h2 truncate text-[15px] sm:text-base">{title}</h2>
+            ) : null}
             {subtitle ? (
-              <p className="ui-muted mt-0.5 text-[13px] sm:text-sm">{subtitle}</p>
+              <p className="ui-muted mt-0.5 text-[12px] leading-snug">{subtitle}</p>
             ) : null}
           </div>
           <IconButton size="sm" onClick={onClose} aria-label="Fermer">
@@ -79,14 +81,14 @@ export function Modal({
       )}
       <div
         className={cn(
-          'ui-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6',
+          'ui-scroll ui-form min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5',
           isPage && 'overflow-visible',
         )}
       >
         {children}
       </div>
       {footer ? (
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[rgba(0,51,170,0.1)] bg-[linear-gradient(180deg,transparent,rgba(232,238,250,0.65))] px-4 py-3.5 sm:px-6">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[rgba(0,51,170,0.08)] bg-caisse-ivory px-4 py-3 sm:px-5">
           {footer}
         </div>
       ) : null}
@@ -118,7 +120,7 @@ export function Modal({
       />
       <div
         className={cn(
-          'relative z-10 flex max-h-[calc(100svh-2rem)] w-full flex-col overflow-hidden rounded-3xl border border-[rgba(0,51,170,0.12)] bg-[linear-gradient(180deg,#fbfcff,#ffffff)] shadow-[var(--shadow-overlay)] animate-ui-scale-in',
+          'relative z-10 flex max-h-[calc(100svh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-[rgba(0,51,170,0.12)] bg-white shadow-[var(--shadow-overlay)] animate-ui-scale-in',
           SIZE[size],
         )}
       >

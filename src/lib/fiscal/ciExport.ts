@@ -2,16 +2,13 @@ import type { Sale } from '../../db/types'
 import { saleNetTTC } from '../refundMath'
 import { saleLocalYmd } from '../salesStats'
 import { toCsvSemicolon } from '../analyticsExport'
+import {
+  buildFneInvoiceNumber,
+  fneLinesFromSale,
+  type FneInvoiceLine,
+} from './fneInvoice'
 
-export type FneInvoiceLine = {
-  designation: string
-  quantity: number
-  unitPriceHT: number
-  vatRatePct: number
-  lineHT: number
-  lineTVA: number
-  lineTTC: number
-}
+export type { FneInvoiceLine }
 
 export type FneExportDocument = {
   format: 'FNE-CI-v1'
@@ -52,24 +49,15 @@ export function buildFneExport(input: {
     .map((sale, index) => {
       const net = saleNetTTC(sale)
       const ratio = sale.totalTTC > 0 ? net / sale.totalTTC : 0
-      const lines: FneInvoiceLine[] = sale.lines.map((line) => {
-        const lineTTC = Math.round(line.unitPriceTTC * line.qty * ratio)
-        const vatRate = line.vatRatePct ?? 0
-        const lineHT = vatRate > 0 ? Math.round(lineTTC / (1 + vatRate / 100)) : lineTTC
-        return {
-          designation: line.name,
-          quantity: line.qty,
-          unitPriceHT: line.qty > 0 ? Math.round(lineHT / line.qty) : 0,
-          vatRatePct: vatRate,
-          lineHT,
-          lineTVA: lineTTC - lineHT,
-          lineTTC,
-        }
-      })
+      const lines = fneLinesFromSale(sale)
+      const ymd = saleLocalYmd(sale.createdAt)
+      const invoiceNumber =
+        sale.fne?.invoiceNumber ??
+        buildFneInvoiceNumber(ymd, index + 1)
       return {
-        invoiceNumber: `FNE-${saleLocalYmd(sale.createdAt).replace(/-/g, '')}-${String(index + 1).padStart(5, '0')}`,
+        invoiceNumber,
         saleId: sale.id,
-        issuedAt: new Date(sale.createdAt).toISOString(),
+        issuedAt: new Date(sale.fne?.issuedAt ?? sale.createdAt).toISOString(),
         storeName: sale.storeName ?? null,
         cashier: sale.cashierDisplayName ?? null,
         paymentMethod: sale.paymentMethod,

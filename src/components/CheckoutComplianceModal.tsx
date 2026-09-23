@@ -13,6 +13,7 @@ import {
 } from '../lib/productTracking'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
+import { FormAlert, FormSection } from '../ui/Form'
 import { Field, Input, Textarea } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 import { cn } from '../ui/cn'
@@ -264,11 +265,10 @@ export function CheckoutComplianceModal({
     >
       <div className="max-h-[min(70vh,560px)] space-y-5 overflow-y-auto pr-1">
         {needsPrescription ? (
-          <section className="space-y-3 rounded-xl border border-violet-200 bg-violet-50/50 p-4">
-            <h3 className="text-sm font-semibold text-violet-900">
-              Ordonnance / mutuelle
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
+          <FormSection
+            title="Ordonnance / mutuelle"
+            description="Informations patient et couverture."
+          >
               <Field label="Patient" required>
                 <Input
                   value={patientName}
@@ -325,20 +325,18 @@ export function CheckoutComplianceModal({
                   onChange={(e) => setMutuelleAmountTTC(e.target.value)}
                 />
               </Field>
-            </div>
-            <Field label="Notes">
+            <Field label="Notes" className="sm:col-span-2">
               <Textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
             </Field>
-          </section>
+          </FormSection>
         ) : null}
 
         {lotProducts.length > 0 ? (
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-ink">Lots & péremption</h3>
+          <FormSection title="Lots & péremption" columns={1}>
             {cart
               .filter((l) => productById.get(l.productId)?.trackLots)
               .map((line) => {
@@ -346,14 +344,14 @@ export function CheckoutComplianceModal({
                 return (
                   <div
                     key={line.productId}
-                    className="rounded-xl border border-zinc-200 bg-white p-3"
+                    className="rounded-[10px] border border-border/80 bg-white p-3"
                   >
-                    <p className="text-sm font-medium text-ink">
+                    <p className="text-[13px] font-semibold text-ink">
                       {line.name}{' '}
-                      <span className="text-ink-muted">× {line.qty}</span>
+                      <span className="font-normal text-ink-muted">× {line.qty}</span>
                     </p>
                     {allocs.length === 0 ? (
-                      <p className="mt-1 text-xs text-rose-600">
+                      <p className="mt-1 text-[11px] text-rose-600">
                         Aucun lot disponible — réapprovisionnez dans Inventaire →
                         Lots.
                       </p>
@@ -364,7 +362,7 @@ export function CheckoutComplianceModal({
                           return (
                             <li
                               key={a.lotId}
-                              className="flex flex-wrap items-center gap-2 text-xs"
+                              className="flex flex-wrap items-center gap-2 text-[11px]"
                             >
                               <span className="font-mono-nums">
                                 Lot {a.lotNumber}
@@ -396,14 +394,11 @@ export function CheckoutComplianceModal({
                   </div>
                 )
               })}
-          </section>
+          </FormSection>
         ) : null}
 
         {serialProducts.length > 0 ? (
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-ink">
-              Numéros de série / IMEI
-            </h3>
+          <FormSection title="Numéros de série / IMEI" columns={1}>
             {cart
               .filter((l) => productById.get(l.productId)?.trackSerialNumbers)
               .map((line) => {
@@ -415,16 +410,16 @@ export function CheckoutComplianceModal({
                 return (
                   <div
                     key={line.productId}
-                    className="rounded-xl border border-zinc-200 bg-white p-3"
+                    className="rounded-[10px] border border-border/80 bg-white p-3"
                   >
-                    <p className="text-sm font-medium text-ink">
+                    <p className="text-[13px] font-semibold text-ink">
                       {line.name}{' '}
-                      <span className="text-ink-muted">
+                      <span className="font-normal text-ink-muted">
                         — choisir {line.qty} unité(s)
                       </span>
                     </p>
                     {available.length === 0 ? (
-                      <p className="mt-1 text-xs text-rose-600">
+                      <p className="mt-1 text-[11px] text-rose-600">
                         Aucune unité en stock — enregistrez des séries dans
                         Inventaire → Séries.
                       </p>
@@ -442,8 +437,8 @@ export function CheckoutComplianceModal({
                               className={cn(
                                 'rounded-lg border px-2 py-1 text-left text-[11px] transition',
                                 on
-                                  ? 'border-zinc-900 bg-zinc-900 text-white'
-                                  : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300',
+                                  ? 'border-[#0033aa] bg-[#0033aa] text-white'
+                                  : 'border-border/80 bg-caisse-ivory hover:border-[#0033aa]/40',
                               )}
                             >
                               <span className="block font-mono-nums font-semibold">
@@ -462,14 +457,10 @@ export function CheckoutComplianceModal({
                   </div>
                 )
               })}
-          </section>
+          </FormSection>
         ) : null}
 
-        {err ? (
-          <p className="text-sm text-rose-600" role="alert">
-            {err}
-          </p>
-        ) : null}
+        {err ? <FormAlert>{err}</FormAlert> : null}
       </div>
     </Modal>
   )

@@ -1,7 +1,13 @@
 ﻿import { db } from '../../db/db'
 import type { ProductWithStock, Promotion } from '../../db/types'
+import { getAppSettings } from '../appSettings'
+import { filterProductsForDomain } from '../domainCatalog'
 import { productIsActive } from '../productFilters'
 import { getOrganizationCredentials } from '../subscription/store'
+import {
+  applyOmnichannelReservations,
+  loadReservedQtyByProduct,
+} from '../omnichannel/stock'
 import { publishStorefrontMenu } from './api'
 import { orderStorefrontCategories } from './types'
 
@@ -97,7 +103,8 @@ export async function buildActiveStorefrontMenu(storeId: string): Promise<{
   categories: string[]
 } | null> {
   const store = await db.stores.get(storeId)
-  const products = await db.products.toArray()
+  const domain = getAppSettings().businessDomain
+  const products = filterProductsForDomain(await db.products.toArray(), domain)
   const stockRows = await db.storeStocks.where('storeId').equals(storeId).toArray()
   const stockByProduct = new Map(stockRows.map((row) => [row.productId, row.stock]))
   const displayProducts: ProductWithStock[] = products
@@ -106,6 +113,11 @@ export async function buildActiveStorefrontMenu(storeId: string): Promise<{
       ...product,
       stock: stockByProduct.get(product.id) ?? 0,
     }))
+  const reserved = await loadReservedQtyByProduct(storeId)
+  const sellableProducts = applyOmnichannelReservations(
+    displayProducts,
+    reserved,
+  )
   const promotions = await db.promotions
     .filter(
       (promotion) =>
@@ -114,7 +126,7 @@ export async function buildActiveStorefrontMenu(storeId: string): Promise<{
     .toArray()
   const categoryRows = await db.productCategories.orderBy('sortOrder').toArray()
   const categories = orderStorefrontCategories(
-    displayProducts,
+    sellableProducts,
     categoryRows.map((row) => row.name),
   )
 
@@ -122,7 +134,7 @@ export async function buildActiveStorefrontMenu(storeId: string): Promise<{
   return {
     storeId,
     storeName: store?.name ?? credentials?.name ?? 'Boutique',
-    products: displayProducts,
+    products: sellableProducts,
     promotions,
     categories,
   }

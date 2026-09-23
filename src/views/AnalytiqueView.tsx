@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { useCallback, useMemo, useState } from 'react'
 import {
   Bar,
@@ -70,7 +71,7 @@ function pctDelta(current: number, previous: number): number | null {
 
 export function AnalytiqueView() {
   const sales = useLiveQuery(() => db.sales.toArray(), [], []) ?? []
-  const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products } = useDomainProducts()
   const priceHistory =
     useLiveQuery(() => db.purchasePriceHistory.toArray(), [], []) ?? []
   const onlineOrders =

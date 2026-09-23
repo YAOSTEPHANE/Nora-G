@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { useMemo, useState } from 'react'
 import { useActiveStore } from '../context/ActiveStoreContext'
 import { db } from '../db/db'
@@ -30,8 +31,7 @@ export function RetoursFournisseurView({ canManage, actor }: Props) {
   const { activeStoreId } = useActiveStore()
   const suppliers =
     useLiveQuery(() => db.suppliers.toArray(), [], []) ?? []
-  const products =
-    useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products } = useDomainProducts()
   const returns =
     useLiveQuery(
       () =>

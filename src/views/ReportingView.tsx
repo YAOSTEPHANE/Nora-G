@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { useEffect, useMemo, useState } from 'react'
 import { useActiveStore } from '../context/ActiveStoreContext'
 import { db } from '../db/db'
@@ -47,7 +48,7 @@ const PERIODS: { value: PilotagePeriod; label: string }[] = [
 export function ReportingView() {
   const { activeStoreId } = useActiveStore()
   const sales = useLiveQuery(() => db.sales.toArray(), [], []) ?? []
-  const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products } = useDomainProducts()
   const stores =
     useLiveQuery(() => db.stores.orderBy('sortOrder').toArray(), [], []) ?? []
   const stocks = useLiveQuery(() => db.storeStocks.toArray(), [], []) ?? []

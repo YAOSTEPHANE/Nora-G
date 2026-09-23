@@ -119,14 +119,32 @@ export function inferDomainFromCategory(category: string): BusinessDomain {
   return 'retail'
 }
 
+/**
+ * Un article n’appartient qu’à une activité.
+ * Priorité au champ `businessDomain` ; à défaut, inférence catégorie (legacy).
+ */
 export function productBelongsToDomain(
   product: Pick<Product, 'category' | 'businessDomain'>,
   domain: BusinessDomain,
 ): boolean {
-  if (product.businessDomain) {
-    return product.businessDomain === domain
-  }
+  const stamped = product.businessDomain
+  if (stamped) return stamped === domain
   return inferDomainFromCategory(product.category) === domain
+}
+
+/** Domaine effectif d’un article (stamp ou inférence). */
+export function effectiveProductDomain(
+  product: Pick<Product, 'category' | 'businessDomain'>,
+): BusinessDomain {
+  return product.businessDomain ?? inferDomainFromCategory(product.category)
+}
+
+/** Filtre catalogue pour l’activité courante. */
+export function filterProductsForDomain<T extends Pick<Product, 'category' | 'businessDomain'>>(
+  products: T[],
+  domain: BusinessDomain,
+): T[] {
+  return products.filter((p) => productBelongsToDomain(p, domain))
 }
 
 /** Onglets catégorie : pack du domaine + catégories réellement utilisées par les produits du domaine. */
@@ -170,6 +188,17 @@ export function categorySelectOptionsForDomain(
     seen.add(key)
   }
   return pack
+}
+
+/**
+ * Quantité de stock d’exemple cohérente avec le seuil d’alerte.
+ * Services (seuil 0) → pas de stock physique.
+ */
+export function suggestedInitialStockForProduct(p: {
+  lowStockThreshold: number
+}): number {
+  if (p.lowStockThreshold <= 0) return 0
+  return Math.max(p.lowStockThreshold * 3, 12)
 }
 
 /** Exemples produits pour amorcer un domaine vide (données de test légères). */

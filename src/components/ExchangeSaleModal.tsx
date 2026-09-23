@@ -12,6 +12,7 @@ import {
 } from '../lib/refundMath'
 import { productIsActive } from '../lib/productFilters'
 import { Button } from '../ui/Button'
+import { FormSection } from '../ui/Form'
 import { Field, Input, Textarea } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 import { useToast } from '../ui/Toast'
@@ -176,15 +177,11 @@ export function ExchangeSaleModal({
   return (
     <Modal open onClose={onClose} title="Échange ticket" size="lg">
       <div className="space-y-4">
-        <p className="text-[13px] text-zinc-600">
-          Solde vente : {formatFCFA(saleNetTTC(sale))}. Sélectionnez les
-          articles à restituer, puis la contrepartie à encaisser.
-        </p>
-
-        <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Articles retournés
-          </p>
+        <FormSection
+          title="Articles retournés"
+          description={`Solde vente : ${formatFCFA(saleNetTTC(sale))}`}
+          columns={1}
+        >
           <ul className="max-h-44 space-y-2 overflow-y-auto">
             {sale.lines.map((line) => {
               const max = refundableQty(line, sale)
@@ -193,11 +190,11 @@ export function ExchangeSaleModal({
               return (
                 <li
                   key={line.productId}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-border/80 bg-white px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-medium">{line.name}</p>
-                    <p className="text-[11px] text-zinc-500">
+                    <p className="truncate text-[13px] font-semibold text-ink">{line.name}</p>
+                    <p className="text-[11px] text-ink-subtle">
                       Max {max} ·{' '}
                       {formatFCFA(
                         lineRefundAmountTTC(line, Math.max(q, 1), sale.discountPct),
@@ -227,12 +224,9 @@ export function ExchangeSaleModal({
               )
             })}
           </ul>
-        </div>
+        </FormSection>
 
-        <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Contrepartie (nouvel article)
-          </p>
+        <FormSection title="Contrepartie (nouvel article)" columns={1}>
           <Field label="Recherche">
             <Input
               value={search}
@@ -241,16 +235,16 @@ export function ExchangeSaleModal({
             />
           </Field>
           {searchHits.length > 0 ? (
-            <ul className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-zinc-200">
+            <ul className="max-h-32 overflow-y-auto rounded-[10px] border border-border/80">
               {searchHits.map((p) => (
                 <li key={p.id}>
                   <button
                     type="button"
-                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[13px] hover:bg-zinc-50"
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[12px] hover:bg-caisse-ivory"
                     onClick={() => addExchange(p)}
                   >
                     <span className="truncate">{p.name}</span>
-                    <span className="font-mono-nums shrink-0 text-zinc-600">
+                    <span className="font-mono-nums shrink-0 text-ink-muted">
                       {formatFCFA(p.priceTTC)}
                     </span>
                   </button>
@@ -259,13 +253,13 @@ export function ExchangeSaleModal({
             </ul>
           ) : null}
           {exchangeLines.length > 0 ? (
-            <ul className="mt-2 space-y-1">
+            <ul className="space-y-1">
               {exchangeLines.map((l) => (
                 <li
                   key={l.productId}
-                  className="flex items-center justify-between gap-2 text-[13px]"
+                  className="flex items-center justify-between gap-2 text-[12px]"
                 >
-                  <span className="truncate">
+                  <span className="truncate text-ink">
                     {l.name} × {l.qty}
                   </span>
                   <div className="flex items-center gap-2">
@@ -288,9 +282,9 @@ export function ExchangeSaleModal({
               ))}
             </ul>
           ) : null}
-        </div>
+        </FormSection>
 
-        <div className="rounded-lg border border-[rgba(0,51,170,0.2)] bg-[#f7f8fc] px-3 py-2 text-[12px]">
+        <div className="rounded-[10px] border border-[rgba(0,51,170,0.18)] bg-caisse-ivory px-3 py-2 text-[12px]">
           <p>
             Retour :{' '}
             <strong className="font-mono-nums">
@@ -312,13 +306,15 @@ export function ExchangeSaleModal({
           </p>
         </div>
 
-        <Field label="Motif" required>
-          <Textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={2}
-          />
-        </Field>
+        <FormSection title="Motif" columns={1}>
+          <Field label="Motif" required>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+            />
+          </Field>
+        </FormSection>
 
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>

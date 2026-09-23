@@ -117,12 +117,19 @@ export function buildBrowserReceiptHtml(input: {
 
   const footerLine = escapeHtml(
     toPrintable(
-      ticketInvoice?.notes?.trim() || getAppSettings().receiptFooterLine,
+      ticketInvoice?.notes?.trim() ||
+        (sale.fne?.invoiceNumber
+          ? `FNE · ${sale.fne.invoiceNumber}`
+          : getAppSettings().receiptFooterLine),
     ),
   )
   const receiptRef = escapeHtml(
     toPrintable(
-      (ticketInvoice?.reference ?? sale.id.slice(0, 8)).toUpperCase(),
+      (
+        ticketInvoice?.reference ??
+        sale.fne?.invoiceNumber ??
+        sale.id.slice(0, 8)
+      ).toUpperCase(),
     ),
   )
 
@@ -145,6 +152,16 @@ export function buildBrowserReceiptHtml(input: {
     `<div style="font-size:${smallSize};color:#000;text-align:center;">Session #${escapeHtml(String(SESSION_ID))}</div>`,
     `<div style="font-size:${fontSize};color:#000;margin-top:2px;text-align:center;">Ref. ${receiptRef}</div>`,
   ].filter(Boolean)
+  if (sale.fne?.invoiceNumber) {
+    headerBits.push(
+      `<div style="font-size:${fontSize};font-weight:700;color:#000;margin-top:2px;text-align:center;">N° FNE : ${escapeHtml(toPrintable(sale.fne.invoiceNumber))}</div>`,
+    )
+    if (sale.fne.nif) {
+      headerBits.push(
+        `<div style="font-size:${smallSize};color:#000;text-align:center;">NIF : ${escapeHtml(toPrintable(sale.fne.nif))}</div>`,
+      )
+    }
+  }
   if (sale.cashierDisplayName) {
     headerBits.push(
       `<div style="font-size:${smallSize};color:#000;text-align:center;">Caissier : ${escapeHtml(toPrintable(sale.cashierDisplayName))}</div>`,

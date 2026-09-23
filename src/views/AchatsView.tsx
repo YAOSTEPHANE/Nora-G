@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { useMemo, useState } from 'react'
 import { useActiveStore } from '../context/ActiveStoreContext'
 import { db } from '../db/db'
@@ -109,8 +110,7 @@ export function AchatsView({ canManage, actor }: Props) {
       [activeStoreId],
       [],
     ) ?? []
-  const products =
-    useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products } = useDomainProducts()
   const priceHistory =
     useLiveQuery(
       () =>

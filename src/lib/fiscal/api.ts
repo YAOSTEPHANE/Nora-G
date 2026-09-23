@@ -24,5 +24,11 @@ export async function updateFiscalSettings(
     headers: buildOrgAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(patch),
   })
-  return parseApiResponse<FiscalSettings>(res)
+  const updated = await parseApiResponse<FiscalSettings>(res)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('nora-fiscal-settings-changed', { detail: updated }),
+    )
+  }
+  return updated
 }

@@ -1,5 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { VIEW_ACCENTS, type NavSection, type NavViewId } from '../navigation'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  VIEW_RAIL_COLORS,
+  type NavSection,
+  type NavViewId,
+  type ViewRailColor,
+} from '../navigation'
 import { cn } from '../ui/cn'
 import { Tooltip } from '../ui/Tooltip'
 import {
@@ -17,7 +22,7 @@ import type { ProductGridDensity } from './ProductGrid'
 
 type StoreOption = { id: string; name: string }
 
-type Props = {
+export type TopbarProps = {
   view: NavViewId
   online: boolean
   syncLabel: string
@@ -35,32 +40,50 @@ type Props = {
   onSelectView?: (id: NavViewId) => void
 }
 
+function railAccentStyle(color: ViewRailColor, active: boolean): CSSProperties {
+  return {
+    ['--rail-accent-fg' as string]: active ? color.fgOn : color.fg,
+    ['--rail-accent-bg' as string]: active ? color.bgOn : color.bg,
+  }
+}
+
 function RailButton({
   label,
   active,
   onClick,
   disabled,
+  tone = 'default',
+  tooltipSide = 'right',
+  railColor,
   children,
 }: {
   label: string
   active?: boolean
   onClick?: () => void
   disabled?: boolean
+  tone?: 'default' | 'danger' | 'success'
+  tooltipSide?: 'right' | 'bottom' | 'left' | 'top'
+  /** Couleurs module rail (hex via CSS vars). */
+  railColor?: ViewRailColor
   children: ReactNode
 }) {
   return (
-    <Tooltip content={label} side="right">
+    <Tooltip content={label} side={tooltipSide}>
       <button
         type="button"
         aria-label={label}
+        aria-current={active ? 'page' : undefined}
         disabled={disabled}
         onClick={onClick}
+        style={railColor ? railAccentStyle(railColor, !!active) : undefined}
         className={cn(
-          'inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition',
-          active
-            ? 'bg-[#0033aa] text-white shadow-sm'
-            : 'text-[#0033aa] hover:bg-[#e8eefa] hover:text-[#00257a]',
-          disabled && 'pointer-events-none opacity-40',
+          'rail-btn',
+          railColor && 'rail-btn--accent',
+          active && railColor && 'rail-btn--accent-on',
+          active && !railColor && 'rail-btn--active',
+          tone === 'danger' && !active && 'rail-btn--danger',
+          tone === 'success' && !active && 'rail-btn--success',
+          disabled && 'rail-btn--disabled',
         )}
       >
         {children}
@@ -69,27 +92,33 @@ function RailButton({
   )
 }
 
-export function Topbar({
-  view,
+/** Barre d’actions en haut : magasin, sync, statut, quitter. */
+export function AppChromeHeader({
   online,
   syncLabel,
   syncBusy,
   onSyncNow,
   onLogout,
-  onOpenModules,
   stores = [],
   activeStoreId,
   onActiveStoreChange,
   canSwitchStore = false,
   productGridDensity,
   onProductGridDensityChange,
-  navSections = [],
-  onSelectView,
-}: Props) {
-  const isDash = view === 'dash'
-  const railModules = navSections
-    .flatMap((section) => section.items)
-    .filter((item) => item.id !== 'dash')
+}: Pick<
+  TopbarProps,
+  | 'online'
+  | 'syncLabel'
+  | 'syncBusy'
+  | 'onSyncNow'
+  | 'onLogout'
+  | 'stores'
+  | 'activeStoreId'
+  | 'onActiveStoreChange'
+  | 'canSwitchStore'
+  | 'productGridDensity'
+  | 'onProductGridDensityChange'
+>) {
   const activeStore = stores.find((s) => s.id === activeStoreId)
   const canOpenStoreMenu = canSwitchStore && stores.length > 1
   const [storeMenuOpen, setStoreMenuOpen] = useState(false)
@@ -117,140 +146,185 @@ export function Topbar({
     productGridDensity === 'compact' ? 'Grille compacte' : 'Grille confort'
 
   return (
-    <header
-      className={cn(
-        'z-20 flex shrink-0 items-center gap-1 border-[rgba(26,35,50,0.07)] bg-[linear-gradient(180deg,rgba(247,248,252,0.96),rgba(238,241,248,0.9))] backdrop-blur-xl',
-        'w-full flex-row border-b px-2 py-2 pt-[max(0.5rem,env(safe-area-inset-top,0px))]',
-        'md:h-full md:w-[4.75rem] md:flex-col md:border-b-0 md:border-r md:px-2 md:py-3',
-      )}
-    >
-      <RailButton
-        label="Tableau de bord"
-        active={isDash}
-        onClick={onOpenModules}
-      >
-        <IconDash className="h-7 w-7" />
-      </RailButton>
-
-      {railModules.length > 0 && onSelectView ? (
-        <nav
-          aria-label="Modules"
-          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto md:min-h-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto"
-        >
-          {railModules.map((item) => {
-            const active = view === item.id
-            return (
-              <RailButton
-                key={item.id}
-                label={item.label}
-                active={active}
-                onClick={() => onSelectView(item.id)}
+    <header className="app-chrome" aria-label="Actions">
+      <div className="app-chrome-brand">
+        {activeStore ? (
+          <span className="app-chrome-store-name">{activeStore.name}</span>
+        ) : null}
+      </div>
+      <div className="app-chrome-actions">
+        {stores.length > 0 ? (
+          <div className="relative" ref={storeMenuRef}>
+            <Tooltip content={activeStore?.name ?? 'Magasin'} side="bottom">
+              <button
+                type="button"
+                aria-label={activeStore?.name ?? 'Magasin'}
+                aria-expanded={storeMenuOpen}
+                disabled={!canOpenStoreMenu}
+                onClick={() => setStoreMenuOpen((open) => !open)}
+                className={cn(
+                  'rail-btn',
+                  storeMenuOpen && 'rail-btn--soft',
+                  !canOpenStoreMenu && 'cursor-default',
+                )}
               >
-                <span
-                  className={cn(
-                    !active && VIEW_ACCENTS[item.id].icon.split(' ')[0],
-                  )}
-                >
-                  <NavIcon id={item.id} className="h-7 w-7" />
+                <span className="rail-icon-wrap">
+                  <IconStore className="h-5 w-5 text-emerald-700" />
+                  {canOpenStoreMenu ? (
+                    <IconChevronDown className="rail-chevron text-emerald-700" />
+                  ) : null}
                 </span>
-              </RailButton>
-            )
-          })}
-        </nav>
-      ) : null}
+              </button>
+            </Tooltip>
+            {storeMenuOpen && canOpenStoreMenu ? (
+              <ul className="rail-store-menu rail-store-menu--header">
+                {stores.map((store) => (
+                  <li key={store.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onActiveStoreChange?.(store.id)
+                        setStoreMenuOpen(false)
+                      }}
+                      className={cn(
+                        'rail-store-item',
+                        store.id === activeStoreId && 'rail-store-item--on',
+                      )}
+                    >
+                      {store.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
 
-      <span className="mx-1 hidden h-px w-8 shrink-0 bg-zinc-200 md:block" aria-hidden />
-      <span className="h-6 w-px shrink-0 bg-zinc-200 md:hidden" aria-hidden />
+        {onProductGridDensityChange && productGridDensity ? (
+          <RailButton
+            label={densityLabel}
+            tooltipSide="bottom"
+            onClick={() =>
+              onProductGridDensityChange(
+                productGridDensity === 'compact' ? 'confort' : 'compact',
+              )
+            }
+          >
+            <IconLayers className="h-5 w-5" />
+          </RailButton>
+        ) : null}
 
-      {stores.length > 0 ? (
-        <div className="relative" ref={storeMenuRef}>
-          <Tooltip content={activeStore?.name ?? 'Magasin'} side="right">
-            <button
-              type="button"
-              aria-label={activeStore?.name ?? 'Magasin'}
-              aria-expanded={storeMenuOpen}
-              disabled={!canOpenStoreMenu}
-              onClick={() => setStoreMenuOpen((open) => !open)}
-              className={cn(
-                'relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-emerald-700 transition',
-                canOpenStoreMenu
-                  ? 'hover:bg-emerald-50'
-                  : 'cursor-default opacity-90',
-                storeMenuOpen && 'bg-emerald-50',
-              )}
-            >
-              <IconStore className="h-7 w-7" />
-              {canOpenStoreMenu ? (
-                <IconChevronDown className="absolute right-0.5 bottom-0.5 h-2.5 w-2.5 text-emerald-500" />
-              ) : null}
-            </button>
-          </Tooltip>
-          {storeMenuOpen && canOpenStoreMenu ? (
-            <ul className="absolute left-0 top-full z-50 mt-1 max-h-64 w-52 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1 shadow-(--shadow-pop) md:left-full md:top-0 md:mt-0 md:ml-2">
-              {stores.map((store) => (
-                <li key={store.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onActiveStoreChange?.(store.id)
-                      setStoreMenuOpen(false)
-                    }}
-                    className={cn(
-                      'flex w-full items-center rounded-lg px-2.5 py-2 text-left text-[12px]',
-                      store.id === activeStoreId
-                        ? 'bg-zinc-100 font-semibold text-zinc-900'
-                        : 'text-zinc-700 hover:bg-zinc-50',
-                    )}
-                  >
-                    {store.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-
-      {onProductGridDensityChange && productGridDensity ? (
-        <RailButton
-          label={densityLabel}
-          onClick={() =>
-            onProductGridDensityChange(
-              productGridDensity === 'compact' ? 'confort' : 'compact',
-            )
-          }
-        >
-          <IconLayers className="h-7 w-7" />
-        </RailButton>
-      ) : null}
-
-      <div className="ml-auto flex items-center gap-1 md:mt-auto md:ml-0 md:flex-col">
         <Tooltip
-          content={online ? `En ligne · ${syncLabel}` : `Hors ligne · ${syncLabel}`}
-          side="right"
+          content={
+            online ? `En ligne · ${syncLabel}` : `Hors ligne · ${syncLabel}`
+          }
+          side="bottom"
         >
           <span
-            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
+            className={cn(
+              'rail-status',
+              online ? 'rail-status--online' : 'rail-status--offline',
+            )}
             aria-label={online ? 'En ligne' : 'Hors ligne'}
           >
             {online ? (
-              <IconOnline className="h-6 w-6 text-emerald-600" />
+              <IconOnline className="h-5 w-5" />
             ) : (
-              <IconOffline className="h-6 w-6 text-amber-600" />
+              <IconOffline className="h-5 w-5" />
             )}
           </span>
         </Tooltip>
+
         <RailButton
           label={syncBusy ? 'Synchronisation…' : 'Synchroniser'}
+          tooltipSide="bottom"
           onClick={onSyncNow}
           disabled={!online || syncBusy}
         >
-          <IconSync className={cn('h-6 w-6', syncBusy && 'animate-spin')} />
+          <IconSync
+            className={cn(
+              'h-5 w-5 text-[#0033aa]',
+              syncBusy && 'animate-spin',
+            )}
+          />
         </RailButton>
-        <RailButton label="Quitter" onClick={onLogout}>
-          <IconLogout className="h-6 w-6 text-rose-500" />
+
+        <RailButton
+          label="Quitter"
+          tooltipSide="bottom"
+          onClick={onLogout}
+          tone="danger"
+        >
+          <IconLogout className="h-5 w-5" />
         </RailButton>
       </div>
     </header>
+  )
+}
+
+/** Rail gauche : modules uniquement. */
+export function Topbar({
+  view,
+  onOpenModules,
+  navSections = [],
+  onSelectView,
+}: Pick<TopbarProps, 'view' | 'onOpenModules' | 'navSections' | 'onSelectView'>) {
+  const isDash = view === 'dash'
+  const moduleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => item.id !== 'dash'),
+    }))
+    .filter((section) => section.items.length > 0)
+
+  return (
+    <aside className="rail" aria-label="Navigation">
+      <div className="rail-top">
+        <RailButton
+          label="Tableau de bord"
+          active={isDash}
+          onClick={onOpenModules}
+          railColor={VIEW_RAIL_COLORS.dash}
+        >
+          <IconDash className="h-5 w-5" />
+        </RailButton>
+      </div>
+
+      {moduleSections.length > 0 && onSelectView ? (
+        <nav aria-label="Modules" className="rail-nav">
+          {moduleSections.map((section, sectionIndex) => (
+            <div key={section.title} className="rail-group">
+              {sectionIndex > 0 ? (
+                <div className="rail-divider" aria-hidden />
+              ) : null}
+              <ul className="rail-list">
+                {section.items.map((item) => {
+                  const active = view === item.id
+                  return (
+                    <li key={item.id}>
+                      <RailButton
+                        label={item.label}
+                        active={active}
+                        onClick={() => onSelectView(item.id)}
+                        railColor={VIEW_RAIL_COLORS[item.id]}
+                      >
+                        <span className="rail-icon-wrap">
+                          <NavIcon id={item.id} className="h-5 w-5" />
+                          {item.badge === 'lowStock' ? (
+                            <span className="rail-dot" aria-hidden />
+                          ) : null}
+                        </span>
+                      </RailButton>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+      ) : (
+        <div className="rail-nav" />
+      )}
+    </aside>
   )
 }

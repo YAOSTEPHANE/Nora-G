@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { db, ensureAllStoreStockRows } from '../db/db'
 import {
@@ -10,6 +11,7 @@ import type { StockTransfer, Store } from '../db/types'
 import type { AuditActor } from '../lib/auditLog'
 import { appendAuditEvent } from '../lib/auditLog'
 import { formatFCFA } from '../lib/money'
+import { findProductByBarcodeInDomain } from '../lib/productBarcode'
 import {
   buildConsolidatedRows,
   networkTotals,
@@ -75,7 +77,7 @@ export function MultiStoreView({
     () => activeStores.filter((s) => !isWarehouseStore(s)),
     [activeStores],
   )
-  const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products } = useDomainProducts()
   const allStocks = useLiveQuery(() => db.storeStocks.toArray(), [], []) ?? []
   const transfers =
     useLiveQuery(
@@ -208,7 +210,7 @@ export function MultiStoreView({
         toast.error('Article requis', 'Sélectionnez un produit ou un code-barres.')
         return
       }
-      prod = await db.products.where('barcode').equals(code).first()
+      prod = await findProductByBarcodeInDomain(code)
     }
     if (!prod) {
       toast.error('Article introuvable')

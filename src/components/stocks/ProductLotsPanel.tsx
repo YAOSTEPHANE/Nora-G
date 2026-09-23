@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { db } from '../../db/db'
 import type { Product, ProductLot } from '../../db/types'
+import { useDomainProducts } from '../../hooks/useDomainProducts'
 import {
   lotExpiryStatus,
   productLotRowId,
@@ -40,9 +41,11 @@ async function pushStockSync(storeId: string, productId: string) {
 
 export function ProductLotsPanel({ storeId, storeLabel }: Props) {
   const toast = useToast()
-  const products =
-    useLiveQuery(() => db.products.filter((p) => !!p.trackLots).toArray(), [], []) ??
-    []
+  const { products: domainProducts } = useDomainProducts({ activeOnly: true })
+  const products = useMemo(
+    () => domainProducts.filter((p) => !!p.trackLots),
+    [domainProducts],
+  )
   const lots =
     useLiveQuery(
       () => db.productLots.where('storeId').equals(storeId).toArray(),

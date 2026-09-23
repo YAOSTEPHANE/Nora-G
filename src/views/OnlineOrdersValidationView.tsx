@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { OnlineOrderMessageModal } from '../components/OnlineOrderMessageModal'
 import { useSubscription } from '../context/SubscriptionContext'
 import { db } from '../db/db'
@@ -12,10 +13,18 @@ import type {
 import { downloadTextFile, toCsvSemicolon } from '../lib/analyticsExport'
 import { formatFCFA } from '../lib/money'
 import { sendOrderApprovedSms } from '../lib/onlineOrderSms'
-import { storeStockRowId } from '../lib/storeStockId'
 import { deductKitchenIngredientStockForLines } from '../lib/kitchenStock'
 import { flushSyncQueue } from '../lib/sync'
 import { importStorefrontInbox } from '../lib/storefront/syncInbox'
+import {
+  omnichannelFulfillmentLabel,
+  omnichannelPlatformLabel,
+} from '../lib/omnichannel/channels'
+import { createOmnichannelCatalogOrder } from '../lib/omnichannel/intake'
+import {
+  checkLinesAgainstSellableStock,
+  deductOmnichannelOrderStock,
+} from '../lib/omnichannel/stock'
 import {
   getDeliveryProviderDemo,
   getKitchenStationDemo,
@@ -113,20 +122,7 @@ function kitchenStatusLabel(status?: OnlineOrder['kitchenStatus']): string {
 }
 
 function platformLabel(platform?: OnlineOrderPlatform): string {
-  switch (platform) {
-    case 'glovo':
-      return 'Glovo'
-    case 'ubereats':
-      return 'Uber Eats'
-    case 'jumia':
-      return 'Jumia Food'
-    case 'shopify':
-      return 'Shopify'
-    case 'whatsapp':
-      return 'WhatsApp'
-    default:
-      return 'Canal direct'
-  }
+  return omnichannelPlatformLabel(platform)
 }
 
 export function OnlineOrdersValidationView({
@@ -149,14 +145,29 @@ export function OnlineOrdersValidationView({
   const [search, setSearch] = useState('')
   const [allStores, setAllStores] = useState(false)
   const [reviewedLimit, setReviewedLimit] = useState(20)
-  const [importPlatform, setImportPlatform] = useState<OnlineOrderPlatform>('shopify')
+  const [importPlatform, setImportPlatform] =
+    useState<OnlineOrderPlatform>('whatsapp')
   const [importExternalRef, setImportExternalRef] = useState('')
   const [importCustomer, setImportCustomer] = useState('')
   const [importPhone, setImportPhone] = useState('')
   const [importAddress, setImportAddress] = useState('')
-  const [importTotal, setImportTotal] = useState('')
-  const [importFulfillment, setImportFulfillment] = useState<'pickup' | 'delivery'>(
-    'delivery',
+  const [importFulfillment, setImportFulfillment] = useState<
+    'pickup' | 'delivery'
+  >('pickup')
+  const [importProductId, setImportProductId] = useState('')
+  const [importQty, setImportQty] = useState('1')
+  const [importLines, setImportLines] = useState<
+    Array<{ productId: string; name: string; qty: number; unitPriceTTC: number }>
+  >([])
+
+  const { products: catalogProducts } = useDomainProducts()
+  const activeCatalog = useMemo(
+    () =>
+      catalogProducts
+        .filter((p) => !p.archived)
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, 'fr')),
+    [catalogProducts],
   )
   const [messageOrderId, setMessageOrderId] = useState<string | null>(null)
 
@@ -307,7 +318,7 @@ export function OnlineOrdersValidationView({
         o.externalOrderRef ?? '',
         String(o.totalTTC),
         paymentLabel(o.paymentMethod),
-        o.fulfillmentMode === 'delivery' ? 'Livraison' : 'Retrait',
+        omnichannelFulfillmentLabel(o.fulfillmentMode),
         o.customerNote ?? '',
         o.customerMessage ?? '',
         o.internalMessage ?? '',
@@ -331,64 +342,66 @@ export function OnlineOrdersValidationView({
     toast.success('Export prêt', `${filteredOrders.length} ligne(s)`)
   }, [filteredOrders, toast])
 
-  const importRemoteOrder = useCallback(async () => {
-    const customerName = importCustomer.trim()
-    const total = Number.parseInt(importTotal.trim(), 10)
-    if (!customerName) {
-      toast.error('Client requis', 'Renseignez le nom du client.')
+  const addImportLine = useCallback(() => {
+    const product = activeCatalog.find((p) => p.id === importProductId)
+    const qty = Number.parseInt(importQty.trim(), 10)
+    if (!product) {
+      toast.error('Produit requis', 'Choisissez un article du catalogue.')
       return
     }
-    if (!Number.isFinite(total) || total <= 0) {
-      toast.error('Montant invalide', 'Renseignez un montant TTC valide.')
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error('Quantité invalide', 'Indiquez une quantité positive.')
       return
     }
-    const vatPct = 18
-    const subtotalHT = Math.round((total * 100) / (100 + vatPct))
-    const tva = total - subtotalHT
-    const now = Date.now()
-    const id = crypto.randomUUID()
-    const externalRef = importExternalRef.trim() || `${importPlatform}-${id.slice(0, 8)}`
-    const kitchenEnabled = isKitchenModuleDemoOn()
-    await db.onlineOrders.add({
-      id,
-      createdAt: now,
-      importedAt: now,
-      sourcePlatform: importPlatform,
-      externalOrderRef: externalRef,
-      storeId: activeStoreId,
-      storeName: activeStoreLabel,
-      customerName,
-      customerPhone: importPhone.trim() || undefined,
-      customerAddress: importAddress.trim() || undefined,
-      paymentMethod: 'mobile',
-      fulfillmentMode: importFulfillment,
-      lines: [
+    setImportLines((prev) => {
+      const existing = prev.find((l) => l.productId === product.id)
+      if (existing) {
+        return prev.map((l) =>
+          l.productId === product.id ? { ...l, qty: l.qty + qty } : l,
+        )
+      }
+      return [
+        ...prev,
         {
-          productId: 'remote-order',
-          name: `Commande importée ${platformLabel(importPlatform)}`,
-          qty: 1,
-          unitPriceTTC: total,
-          vatRatePct: vatPct,
+          productId: product.id,
+          name: product.name,
+          qty,
+          unitPriceTTC: product.priceTTC,
         },
-      ],
-      subtotalHT,
-      tva,
-      totalTTC: total,
-      status: 'pending',
-      kitchenStatus: kitchenEnabled ? 'queued' : undefined,
-      kitchenPriority: kitchenEnabled ? 'normal' : undefined,
-      kitchenStation: kitchenEnabled ? getKitchenStationDemo() : undefined,
-      kitchenTicketCode: kitchenEnabled ? `K-${id.slice(0, 6).toUpperCase()}` : undefined,
-      kitchenUpdatedAt: kitchenEnabled ? now : undefined,
-      deliveryStatus: importFulfillment === 'delivery' ? 'queued' : undefined,
-      deliveryUpdatedAt: importFulfillment === 'delivery' ? now : undefined,
+      ]
     })
-    setImportCustomer('')
-    setImportPhone('')
-    setImportAddress('')
-    setImportTotal('')
-    setImportExternalRef('')
-    toast.success('Commande distante importée', platformLabel(importPlatform))
+    setImportQty('1')
+  }, [activeCatalog, importProductId, importQty, toast])
+
+  const importRemoteOrder = useCallback(async () => {
+    try {
+      const order = await createOmnichannelCatalogOrder({
+        storeId: activeStoreId,
+        storeName: activeStoreLabel,
+        platform: importPlatform,
+        fulfillmentMode: importFulfillment,
+        customerName: importCustomer,
+        customerPhone: importPhone,
+        customerAddress: importAddress,
+        externalOrderRef: importExternalRef,
+        lines: importLines.map((l) => ({
+          productId: l.productId,
+          qty: l.qty,
+        })),
+      })
+      setImportCustomer('')
+      setImportPhone('')
+      setImportAddress('')
+      setImportExternalRef('')
+      setImportLines([])
+      toast.success(
+        'Commande omnicanal créée',
+        `${platformLabel(order.sourcePlatform)} · ${omnichannelFulfillmentLabel(order.fulfillmentMode)} · stock réservé`,
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      toast.error('Import impossible', msg)
+    }
   }, [
     activeStoreId,
     activeStoreLabel,
@@ -396,9 +409,9 @@ export function OnlineOrdersValidationView({
     importCustomer,
     importExternalRef,
     importFulfillment,
+    importLines,
     importPhone,
     importPlatform,
-    importTotal,
     toast,
   ])
 
@@ -429,32 +442,24 @@ export function OnlineOrdersValidationView({
             const deductionAt = Date.now()
 
             if (!fresh.stockDeductedAt) {
-              for (const line of fresh.lines) {
-                const product = await db.products.get(line.productId)
-                if (!product || product.archived) {
-                  throw new Error(
-                    `Produit indisponible: « ${line.name} ».`,
-                  )
-                }
-                const stockId = storeStockRowId(fresh.storeId, line.productId)
-                const row = await db.storeStocks.get(stockId)
-                const currentStock = row?.stock ?? 0
-                if (currentStock < line.qty) {
-                  throw new Error(
-                    `Stock insuffisant pour « ${line.name} » (disponible: ${currentStock}).`,
-                  )
-                }
-              }
-
-              for (const line of fresh.lines) {
-                const stockId = storeStockRowId(fresh.storeId, line.productId)
-                const row = await db.storeStocks.get(stockId)
-                const currentStock = row?.stock ?? 0
-                await db.storeStocks.put({
-                  id: stockId,
+              const catalogLines = fresh.lines.filter(
+                (l) => l.productId && l.productId !== 'remote-order',
+              )
+              if (catalogLines.length > 0) {
+                const failures = await checkLinesAgainstSellableStock({
                   storeId: fresh.storeId,
-                  productId: line.productId,
-                  stock: currentStock - line.qty,
+                  lines: catalogLines,
+                  ignoreOrderId: fresh.id,
+                })
+                if (failures.length > 0) {
+                  const first = failures[0]!
+                  throw new Error(
+                    `Stock insuffisant pour « ${first.name} » (vendable : ${first.available}).`,
+                  )
+                }
+                await deductOmnichannelOrderStock({
+                  storeId: fresh.storeId,
+                  lines: catalogLines,
                 })
               }
             }
@@ -896,11 +901,7 @@ export function OnlineOrdersValidationView({
         icon={<IconOnlineOrders />}
         eyebrow="Commandes"
         title={`${pending.length} commande${pending.length > 1 ? 's' : ''} en attente`}
-        subtitle={
-          canValidateOnlineOrders
-            ? 'Reçu et export pour toute l’équipe ; valider ou rejeter pour impacter stock et vente.'
-            : 'Consultation, reçu et export : la validation ou le rejet est réservé au gérant ou à l’administrateur.'
-        }
+        subtitle="Boutique, click & collect, WhatsApp et marketplaces — un seul stock"
       />
 
       {!canValidateOnlineOrders ? (
@@ -910,6 +911,70 @@ export function OnlineOrdersValidationView({
           valider ou rejeter une commande.
         </div>
       ) : null}
+
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardContent className="space-y-1 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              Boutique en ligne
+            </p>
+            <p className="text-lg font-semibold text-zinc-900">
+              {
+                filteredOrders.filter(
+                  (o) => o.sourcePlatform === 'web_storefront',
+                ).length
+              }
+            </p>
+            <p className="text-[11px] text-zinc-500">commandes · même stock</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-1 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              Click & collect
+            </p>
+            <p className="text-lg font-semibold text-zinc-900">
+              {
+                filteredOrders.filter(
+                  (o) => (o.fulfillmentMode ?? 'pickup') !== 'delivery',
+                ).length
+              }
+            </p>
+            <p className="text-[11px] text-zinc-500">retraits magasin</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-1 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              WhatsApp
+            </p>
+            <p className="text-lg font-semibold text-zinc-900">
+              {
+                filteredOrders.filter((o) => o.sourcePlatform === 'whatsapp')
+                  .length
+              }
+            </p>
+            <p className="text-[11px] text-zinc-500">commandes liées catalogue</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-1 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              Marketplaces
+            </p>
+            <p className="text-lg font-semibold text-zinc-900">
+              {
+                filteredOrders.filter((o) =>
+                  ['glovo', 'ubereats', 'jumia', 'shopify'].includes(
+                    o.sourcePlatform ?? '',
+                  ),
+                ).length
+              }
+            </p>
+            <p className="text-[11px] text-zinc-500">Glovo · Uber · Jumia · Shopify</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-3.5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0 flex-1 sm:max-w-md">
@@ -962,8 +1027,8 @@ export function OnlineOrdersValidationView({
       <Card>
         <CardContent className="space-y-3">
           <SectionHeader
-            title="Intégration plateformes & commandes distantes"
-            subtitle="Import API/webhook + suivi par canal"
+            title="Omnicanal · WhatsApp & marketplaces"
+            subtitle="Articles du catalogue → même stock que la caisse et la boutique en ligne"
           />
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             <Input
@@ -981,15 +1046,8 @@ export function OnlineOrdersValidationView({
             <Input
               value={importAddress}
               onChange={(e) => setImportAddress(e.target.value)}
-              placeholder="Adresse"
+              placeholder="Adresse (si livraison)"
               aria-label="Adresse commande distante"
-            />
-            <Input
-              inputMode="numeric"
-              value={importTotal}
-              onChange={(e) => setImportTotal(e.target.value)}
-              placeholder="Montant TTC"
-              aria-label="Montant commande distante"
             />
             <Input
               value={importExternalRef}
@@ -999,32 +1057,99 @@ export function OnlineOrdersValidationView({
             />
             <Select
               value={importPlatform}
-              onChange={(e) => setImportPlatform(e.target.value as OnlineOrderPlatform)}
+              onChange={(e) =>
+                setImportPlatform(e.target.value as OnlineOrderPlatform)
+              }
               aria-label="Plateforme"
             >
-              <option value="shopify">Shopify</option>
+              <option value="whatsapp">WhatsApp</option>
               <option value="glovo">Glovo</option>
               <option value="ubereats">Uber Eats</option>
               <option value="jumia">Jumia Food</option>
-              <option value="whatsapp">WhatsApp</option>
+              <option value="shopify">Shopify</option>
               <option value="native">Canal direct</option>
             </Select>
             <Select
               value={importFulfillment}
-              onChange={(e) => setImportFulfillment(e.target.value as 'pickup' | 'delivery')}
+              onChange={(e) =>
+                setImportFulfillment(e.target.value as 'pickup' | 'delivery')
+              }
               aria-label="Mode"
             >
+              <option value="pickup">Click & collect</option>
               <option value="delivery">Livraison</option>
-              <option value="pickup">Retrait</option>
             </Select>
-            <Button
-              className="w-full sm:w-auto"
-              variant="accent"
-              onClick={() => void importRemoteOrder()}
+            <Select
+              value={importProductId}
+              onChange={(e) => setImportProductId(e.target.value)}
+              aria-label="Produit catalogue"
             >
-              Importer commande distante
-            </Button>
+              <option value="">Choisir un produit…</option>
+              {activeCatalog.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {formatFCFA(p.priceTTC)}
+                </option>
+              ))}
+            </Select>
+            <div className="flex gap-2">
+              <Input
+                inputMode="numeric"
+                value={importQty}
+                onChange={(e) => setImportQty(e.target.value)}
+                placeholder="Qté"
+                aria-label="Quantité"
+                className="max-w-[5.5rem]"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={addImportLine}
+              >
+                Ajouter
+              </Button>
+            </div>
           </div>
+          {importLines.length > 0 ? (
+            <ul className="space-y-1 rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-[12px]">
+              {importLines.map((line) => (
+                <li
+                  key={line.productId}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="min-w-0 truncate">
+                    {line.qty}× {line.name}
+                  </span>
+                  <span className="shrink-0 font-mono-nums text-zinc-600">
+                    {formatFCFA(line.unitPriceTTC * line.qty)}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[11px] font-medium text-rose-600"
+                    onClick={() =>
+                      setImportLines((prev) =>
+                        prev.filter((l) => l.productId !== line.productId),
+                      )
+                    }
+                  >
+                    Retirer
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[12px] text-zinc-500">
+              Ajoutez des produits du catalogue pour réserver le stock omnicanal.
+            </p>
+          )}
+          <Button
+            className="w-full sm:w-auto"
+            variant="accent"
+            onClick={() => void importRemoteOrder()}
+            disabled={importLines.length === 0}
+          >
+            Créer la commande omnicanal
+          </Button>
           {platformBreakdown.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {platformBreakdown.map(([name, count]) => (
@@ -1144,9 +1269,7 @@ export function OnlineOrdersValidationView({
                     ) : null}
                     <p className="mt-1 flex items-center gap-1.5 text-[11px] text-zinc-500">
                       <IconTruck className="h-3 w-3" />
-                      {order.fulfillmentMode === 'delivery'
-                        ? 'Livraison'
-                        : 'Retrait boutique'}
+                      {omnichannelFulfillmentLabel(order.fulfillmentMode)}
                       {order.discountPct ? (
                         <>
                           {' · '}Promo {order.promoCode ?? ''} ({order.discountPct} %)
@@ -1290,7 +1413,7 @@ export function OnlineOrdersValidationView({
                   </div>
                   <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-2 text-[12px] text-zinc-600">
                     Station: {order.kitchenStation ?? '—'} ·{' '}
-                    {order.fulfillmentMode === 'delivery' ? 'Livraison' : 'Retrait'}
+                    {omnichannelFulfillmentLabel(order.fulfillmentMode)}
                   </p>
                   <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                     <Button

@@ -14,10 +14,10 @@ import type {
 } from '../db/types'
 import { downloadTextFile, toCsvSemicolon } from '../lib/analyticsExport'
 import { formatFCFA } from '../lib/money'
-import { getAppSettings } from '../lib/appSettings'
 import { featuresForDomain } from '../lib/businessDomain'
-import { productBelongsToDomain } from '../lib/domainCatalog'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { productIsActive } from '../lib/productFilters'
+import { findProductByBarcodeInDomain } from '../lib/productBarcode'
 import { storeStockRowId } from '../lib/storeStockId'
 import {
   adjustKitchenIngredientStock,
@@ -83,9 +83,8 @@ function urgency(p: ProductWithStock): number {
 export function StocksView({ isAdmin, auditActor }: Props) {
   const { activeStoreId, activeStore } = useActiveStore()
   const toast = useToast()
-  const domain = getAppSettings().businessDomain
+  const { domain, products } = useDomainProducts()
   const domainFeatures = featuresForDomain(domain)
-  const products = useLiveQuery(() => db.products.toArray(), [], []) ?? []
   const sales = useLiveQuery(() => db.sales.toArray(), [], []) ?? []
   const stockRows =
     useLiveQuery(
@@ -111,6 +110,10 @@ export function StocksView({ isAdmin, auditActor }: Props) {
   const [locCode, setLocCode] = useState('')
   const [locBusy, setLocBusy] = useState(false)
   const [showArchivedIngredients, setShowArchivedIngredients] = useState(false)
+  const domainProductIds = useMemo(
+    () => new Set(products.map((p) => p.id)),
+    [products],
+  )
   const mergedProducts = useMemo((): ProductWithStock[] => {
     const m =
       selectedLocationId === 'all'
@@ -120,10 +123,8 @@ export function StocksView({ isAdmin, auditActor }: Props) {
               .filter((r) => r.locationId === selectedLocationId)
               .map((r) => [r.productId, r.stock]),
           )
-    return products
-      .filter((p) => productBelongsToDomain(p, domain))
-      .map((p) => ({ ...p, stock: m.get(p.id) ?? 0 }))
-  }, [products, stockRows, locationStocks, selectedLocationId, domain])
+    return products.map((p) => ({ ...p, stock: m.get(p.id) ?? 0 }))
+  }, [products, stockRows, locationStocks, selectedLocationId])
   const [showArchived, setShowArchived] = useState(false)
   const [filter, setFilter] = useState<StockFilter>('tous')
   const [stockScope, setStockScope] = useState<StockScope>('catalogue')
@@ -261,12 +262,19 @@ export function StocksView({ isAdmin, auditActor }: Props) {
         try {
           const payload = JSON.parse(ev.payloadJson) as {
             storeId?: string
+            productId?: string
             productName?: string
             previousQty?: number
             newQty?: number
             source?: string
           }
           if (payload.storeId !== activeStoreId) return null
+          if (
+            payload.productId &&
+            !domainProductIds.has(payload.productId)
+          ) {
+            return null
+          }
           return {
             id: ev.id,
             createdAt: ev.createdAt,
@@ -284,7 +292,7 @@ export function StocksView({ isAdmin, auditActor }: Props) {
       })
       .filter((x): x is NonNullable<typeof x> => x !== null)
       .slice(0, 20)
-  }, [auditRows, activeStoreId])
+  }, [auditRows, activeStoreId, domainProductIds])
 
   const kitchenRows = useMemo(() => {
     const rows = mergeKitchenIngredientRows(
@@ -483,7 +491,7 @@ export function StocksView({ isAdmin, auditActor }: Props) {
     }
     setQuickBusy(true)
     try {
-      const p = await db.products.where('barcode').equals(code).first()
+      const p = await findProductByBarcodeInDomain(code)
       if (!p) {
         toast.error('Aucun article avec ce code-barres')
         return

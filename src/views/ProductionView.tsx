@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useDomainProducts } from '../hooks/useDomainProducts'
 import { useMemo, useState } from 'react'
 import { useActiveStore } from '../context/ActiveStoreContext'
 import { db } from '../db/db'
@@ -25,8 +26,7 @@ type Props = {
 export function ProductionView({ canManage, actor }: Props) {
   const toast = useToast()
   const { activeStoreId } = useActiveStore()
-  const products =
-    useLiveQuery(() => db.products.toArray(), [], []) ?? []
+  const { products } = useDomainProducts()
   const orders =
     useLiveQuery(
       () =>

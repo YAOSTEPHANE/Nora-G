@@ -11,6 +11,7 @@ import {
 import type { LineRefundQtyMap } from '../lib/refundMath'
 import { applySaleRefund } from '../lib/refundApply'
 import { Button } from '../ui/Button'
+import { FormSection } from '../ui/Form'
 import { Field, Input, Textarea } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 import { useToast } from '../ui/Toast'
@@ -137,6 +138,11 @@ export function RefundSaleModal({ sale, actor, onClose, onDone }: Props) {
       }
     >
       <div className="space-y-4">
+        <FormSection
+          title="Lignes à rembourser"
+          description="Indiquez la quantité à rembourser pour chaque article."
+          columns={1}
+        >
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={initFullRefund}>
             Tout rembourser
@@ -159,11 +165,11 @@ export function RefundSaleModal({ sale, actor, onClose, onDone }: Props) {
             return (
               <li
                 key={line.productId}
-                className="rounded-lg border border-zinc-200 p-3"
+                className="rounded-[10px] border border-border/80 bg-white p-3"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="font-medium text-zinc-900">{line.name}</span>
-                  <span className="text-[11px] text-zinc-500">
+                  <span className="text-[13px] font-semibold text-ink">{line.name}</span>
+                  <span className="text-[11px] text-ink-subtle">
                     vendu {line.qty} · max {max}
                   </span>
                 </div>
@@ -198,7 +204,9 @@ export function RefundSaleModal({ sale, actor, onClose, onDone }: Props) {
             )
           })}
         </ul>
+        </FormSection>
 
+        <FormSection title="Motif" columns={1}>
         <Field label="Motif (obligatoire)" required>
           <Textarea
             value={reason}
@@ -208,23 +216,24 @@ export function RefundSaleModal({ sale, actor, onClose, onDone }: Props) {
           />
         </Field>
 
-        <div className="rounded-lg bg-zinc-50 p-3 text-[13px]">
-          <p className="text-zinc-600">
+        <div className="rounded-[10px] border border-border/70 bg-caisse-ivory p-3 text-[12px]">
+          <p className="text-ink-muted">
             Montant remboursement :{' '}
-            <span className="font-mono-nums font-bold text-zinc-900">
+            <span className="font-mono-nums font-bold text-ink">
               {preview.ok ? formatFCFA(preview.amountTTC) : '—'}
             </span>
           </p>
           {preview.ok ? (
-            <p className="mt-0.5 text-[12px] text-zinc-500">
+            <p className="mt-0.5 text-[11px] text-ink-subtle">
               Net ticket après : {formatFCFA(netAfter)}
             </p>
           ) : (
-            <p className="mt-0.5 text-[12px] text-amber-700">
+            <p className="mt-0.5 text-[11px] text-amber-700">
               {preview.message}
             </p>
           )}
         </div>
+        </FormSection>
       </div>
     </Modal>
   )

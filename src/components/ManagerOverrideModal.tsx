@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { verifyManagerOverrideSecret } from '../lib/managerOverride'
 import { Button } from '../ui/Button'
+import { FormAlert, FormActions, FormSection, FormSwitchRow } from '../ui/Form'
 import { Field, Input } from '../ui/Input'
 import { Modal } from '../ui/Modal'
+import { Switch } from '../ui/Switch'
 
 type Props = {
   title?: string
@@ -42,40 +44,37 @@ export function ManagerOverrideModal({
   }
 
   return (
-    <Modal open onClose={onCancel} title={title} size="sm">
-      <form onSubmit={submit} className="space-y-3">
-        <p className="text-[13px] text-zinc-600">{subtitle}</p>
-        <Field label="PIN ou mot de passe gérant / admin" required>
-          <Input
-            type={show ? 'text' : 'password'}
-            value={secret}
-            onChange={(e) => {
-              setSecret(e.target.value)
-              setError(null)
-            }}
-            autoFocus
-            required
-          />
-        </Field>
-        <label className="flex items-center gap-2 text-[12px] text-zinc-600">
-          <input
-            type="checkbox"
-            checked={show}
-            onChange={(e) => setShow(e.target.checked)}
-          />
-          Afficher le secret
-        </label>
-        {error ? (
-          <p className="text-[12px] font-medium text-rose-600">{error}</p>
-        ) : null}
-        <div className="flex justify-end gap-2 pt-1">
+    <Modal open onClose={onCancel} title={title} subtitle={subtitle} size="sm">
+      <form onSubmit={submit} className="ui-form">
+        <FormSection title="Authentification" columns={1}>
+          <Field label="PIN ou mot de passe gérant / admin" required>
+            <Input
+              type={show ? 'text' : 'password'}
+              value={secret}
+              onChange={(e) => {
+                setSecret(e.target.value)
+                setError(null)
+              }}
+              autoFocus
+              required
+            />
+          </Field>
+          <FormSwitchRow label="Afficher le secret">
+            <Switch
+              checked={show}
+              onChange={(e) => setShow(e.target.checked)}
+            />
+          </FormSwitchRow>
+        </FormSection>
+        {error ? <FormAlert>{error}</FormAlert> : null}
+        <FormActions className="mt-4">
           <Button type="button" variant="ghost" onClick={onCancel}>
             Annuler
           </Button>
           <Button type="submit" variant="accent">
             {confirmLabel}
           </Button>
-        </div>
+        </FormActions>
       </form>
     </Modal>
   )
