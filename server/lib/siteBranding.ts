@@ -9,15 +9,21 @@ export type SiteBrandingPublic = {
 }
 
 export async function getSiteBranding(): Promise<SiteBrandingPublic> {
-  const row = await prisma.platformSiteBranding.findUnique({
-    where: { key: CONFIG_KEY },
-  })
-  if (!row) {
+  try {
+    const row = await prisma.platformSiteBranding.findUnique({
+      where: { key: CONFIG_KEY },
+    })
+    if (!row) {
+      return { logoUrl: null, brandName: null, updatedAt: null }
+    }
+    return {
+      logoUrl: row.logoUrl?.trim() || null,
+      brandName: row.brandName?.trim() || null,
+      updatedAt: row.updatedAt.toISOString(),
+    }
+  } catch (error) {
+    // Prod sans DATABASE_URL / Mongo down : ne pas casser la page d’accueil.
+    console.error('[site-branding]', error)
     return { logoUrl: null, brandName: null, updatedAt: null }
-  }
-  return {
-    logoUrl: row.logoUrl?.trim() || null,
-    brandName: row.brandName?.trim() || null,
-    updatedAt: row.updatedAt.toISOString(),
   }
 }
