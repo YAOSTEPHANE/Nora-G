@@ -12,6 +12,7 @@ import { useSubscription } from '../context/SubscriptionContext'
 import { Button } from '../ui/Button'
 import { cn } from '../ui/cn'
 import { IconDelete, IconEye, IconEyeOff } from '../ui/icons'
+import { useToast } from '../ui/Toast'
 
 type Props = {
   onSuccess: (profile: StaffProfile, authMethod: StaffAuthMethod) => void
@@ -24,6 +25,7 @@ const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'] a
 
 export function LoginScreen({ onSuccess }: Props) {
   const { organization } = useSubscription()
+  const toast = useToast()
   const [profiles, setProfiles] = useState<StaffProfile[]>(() =>
     listActiveStaffProfiles(),
   )
@@ -37,6 +39,7 @@ export function LoginScreen({ onSuccess }: Props) {
   const [shakeKey, setShakeKey] = useState(0)
   const [cardReady, setCardReady] = useState(false)
   const [mode, setMode] = useState<'pin' | 'password'>('pin')
+  const hasEntryError = Boolean(error)
 
   useEffect(() => {
     if (listActiveStaffProfiles().length > 0) return
@@ -73,15 +76,22 @@ export function LoginScreen({ onSuccess }: Props) {
   const orgLabel = organization?.name?.trim() || null
   const locked = lockRemainingSec > 0 || profiles.length === 0
 
+  const notifyAuthFailure = (title: string, description?: string) => {
+    setShakeKey((k) => k + 1)
+    setError(title)
+    toast.error(title, description)
+  }
+
   const attemptAuth = (rawSecret: string) => {
     if (lockRemainingSec > 0) {
-      setError(`Trop d’essais. Patientez ${lockRemainingSec}s.`)
-      setShakeKey((k) => k + 1)
+      notifyAuthFailure(
+        'Trop d’essais',
+        `Patientez encore ${lockRemainingSec}s.`,
+      )
       return
     }
     if (profiles.length === 0) {
-      setError('Aucun profil disponible.')
-      setShakeKey((k) => k + 1)
+      notifyAuthFailure('Aucun profil disponible')
       return
     }
 
@@ -92,15 +102,19 @@ export function LoginScreen({ onSuccess }: Props) {
     if (!matched) {
       const nextFails = failedAttempts + 1
       setFailedAttempts(nextFails)
-      setShakeKey((k) => k + 1)
       setSecret('')
       if (nextFails >= MAX_FAILED_ATTEMPTS) {
         setLockedUntil(Date.now() + LOCKOUT_MS)
         setFailedAttempts(0)
-        setError('Compte verrouillé 30 secondes.')
+        notifyAuthFailure(
+          'Compte verrouillé',
+          'Trop de tentatives. Réessayez dans 30 secondes.',
+        )
       } else {
-        setError(
-          `Code incorrect · ${MAX_FAILED_ATTEMPTS - nextFails} restant(s)`,
+        const remaining = MAX_FAILED_ATTEMPTS - nextFails
+        notifyAuthFailure(
+          'Code incorrect',
+          `${remaining} essai${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}.`,
         )
       }
       return
@@ -233,9 +247,17 @@ export function LoginScreen({ onSuccess }: Props) {
             </div>
 
             {mode === 'pin' ? (
-              <div className="login-pin-flow">
+              <div
+                className={cn(
+                  'login-pin-flow',
+                  hasEntryError && 'login-entry--err',
+                )}
+              >
                 <div
-                  className={cn('login-pin-dots', error && 'login-pin-dots--err')}
+                  className={cn(
+                    'login-pin-dots',
+                    hasEntryError && 'login-pin-dots--err',
+                  )}
                   aria-live="polite"
                   aria-label={`PIN : ${secret.length} chiffre(s)`}
                 >
@@ -260,7 +282,10 @@ export function LoginScreen({ onSuccess }: Props) {
                   <p className="login-status">Touchez les chiffres</p>
                 )}
 
-                <div className="login-pad" aria-label="Clavier PIN">
+                <div
+                  className={cn('login-pad', hasEntryError && 'login-pad--err')}
+                  aria-label="Clavier PIN"
+                >
                   {PIN_KEYS.map((key, idx) => {
                     if (key === '') {
                       return <span key={`empty-${idx}`} />
@@ -294,10 +319,21 @@ export function LoginScreen({ onSuccess }: Props) {
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="login-pass-flow">
+              <form
+                onSubmit={handleSubmit}
+                className={cn(
+                  'login-pass-flow',
+                  hasEntryError && 'login-entry--err',
+                )}
+              >
                 <label className="login-pass-field">
                   <span className="login-pass-label">Mot de passe</span>
-                  <div className="login-pass-row">
+                  <div
+                    className={cn(
+                      'login-pass-row',
+                      hasEntryError && 'login-pass-row--err',
+                    )}
+                  >
                     <input
                       type={showSecret ? 'text' : 'password'}
                       autoComplete="current-password"
@@ -309,9 +345,10 @@ export function LoginScreen({ onSuccess }: Props) {
                       placeholder="••••••••"
                       autoFocus
                       disabled={locked}
+                      aria-invalid={hasEntryError}
                       className={cn(
                         'login-pass-input',
-                        error && 'login-pass-input--err',
+                        hasEntryError && 'login-pass-input--err',
                       )}
                     />
                     <button

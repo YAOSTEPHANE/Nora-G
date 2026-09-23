@@ -4120,12 +4120,39 @@ body {
   gap: 0.65rem;
 }
 
+.login-entry--err {
+  border-radius: 1rem;
+  border: 1.5px solid rgba(239, 68, 68, 0.45);
+  background: linear-gradient(180deg, #fff1f2 0%, #fff7f8 100%);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+  padding: 0.85rem 0.75rem 1rem;
+  animation: login-entry-flash 480ms var(--ease-out-quart);
+}
+
+@keyframes login-entry-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.35);
+  }
+  40% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.18);
+  }
+  100% {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+  }
+}
+
 .login-pin-dots {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.7rem;
   min-height: 1.5rem;
+  width: 100%;
+  border-radius: 0.85rem;
+  padding: 0.55rem 0.75rem;
+  transition:
+    background 140ms var(--ease-out-quart),
+    border-color 140ms var(--ease-out-quart);
 }
 
 .login-pin-dot {
@@ -4146,8 +4173,14 @@ body {
   transform: scale(1.1);
 }
 
+.login-pin-dots--err {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: #fee2e2;
+}
+
 .login-pin-dots--err .login-pin-dot {
   border-color: #f87171;
+  background: rgba(248, 113, 113, 0.18);
 }
 
 .login-pin-dots--err .login-pin-dot--on {
@@ -4188,6 +4221,17 @@ body {
   gap: 0.45rem;
   width: min(100%, 15.5rem);
   margin-top: 0.35rem;
+}
+
+.login-pad--err .login-pad-key:not(.login-pad-key--mute) {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: #fff5f5;
+  color: #9f1239;
+}
+
+.login-pad--err .login-pad-key:not(.login-pad-key--mute):hover:not(:disabled) {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: #ffe4e6;
 }
 
 .login-pad-key {
@@ -4262,6 +4306,12 @@ body {
   gap: 0.4rem;
 }
 
+.login-pass-row--err .login-pass-eye {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: #fff1f2;
+  color: #be123c;
+}
+
 .login-pass-input {
   width: 100%;
   border-radius: 0.8rem;
@@ -4271,7 +4321,7 @@ body {
   font-size: 1rem;
   color: #0b1220;
   outline: none;
-  transition: border-color 140ms var(--ease-out-quart), box-shadow 140ms var(--ease-out-quart);
+  transition: border-color 140ms var(--ease-out-quart), box-shadow 140ms var(--ease-out-quart), background 140ms var(--ease-out-quart);
 }
 
 .login-pass-input:focus {
@@ -4282,6 +4332,15 @@ body {
 
 .login-pass-input--err {
   border-color: #ef4444;
+  background: #fff1f2;
+  color: #9f1239;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.login-pass-input--err:focus {
+  border-color: #dc2626;
+  background: #fff1f2;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
 }
 
 .login-pass-eye {
