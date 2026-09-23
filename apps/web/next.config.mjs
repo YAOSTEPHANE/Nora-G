@@ -4,12 +4,15 @@ import withPWA from 'next-pwa'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.join(__dirname, '../..')
+/** En local uniquement : proxy vers `npm run dev:api`. Sur Vercel, l’API = serverless `/api`. */
 const apiOrigin = process.env.API_PROXY_TARGET ?? 'http://localhost:4000'
+const useLocalApiProxy =
+  !process.env.VERCEL && Boolean(apiOrigin)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: repoRoot,
-  // Monorepo : Next tourne dans apps/web ; Vercel attend .next à la racine du service.
+  // Monorepo : Next tourne dans apps/web ; Vercel attend .next à la racine du monorepo.
   distDir: '../../.next',
   allowedDevOrigins: ['127.0.0.1', 'localhost', '192.168.1.68'],
   // next-pwa injecte une config webpack → explicite pour Next 16
@@ -22,6 +25,7 @@ const nextConfig = {
     appNewScrollHandler: false,
   },
   async rewrites() {
+    if (!useLocalApiProxy) return []
     return [
       { source: '/api/:path*', destination: `${apiOrigin}/api/:path*` },
       { source: '/health', destination: `${apiOrigin}/health` },
